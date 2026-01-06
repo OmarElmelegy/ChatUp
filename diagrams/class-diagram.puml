@@ -1,0 +1,98 @@
+@startuml ChatSystem Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor #FFFFCC
+    BorderColor #000000
+    ArrowColor #000000
+}
+
+' Interfaces
+interface Runnable {
+    + run() : void
+}
+
+' ========== SERVER SIDE ==========
+package "Server Side" #DDFFDD {
+    class ChatServer {
+        {static} - PORT : int = 5001
+        {static} - clients : List<ClientHandler>
+        --
+        {static} + main(String[] args) : void
+        {static} + addClient(ClientHandler) : void
+        {static} + removeClient(ClientHandler) : void
+        {static} + broadcast(String, ClientHandler) : void
+        {static} + sendPrivateMessage(String, String, String, ClientHandler) : void
+        {static} + getClients() : List<ClientHandler>
+    }
+
+    class ClientHandler {
+        - clientSocket : Socket
+        - output : PrintWriter
+        - username : String
+        --
+        + ClientHandler(Socket)
+        + run() : void
+        + sendMessage(String) : void
+        + getUsername() : String
+    }
+    
+    note right of ChatServer
+      Main server that accepts
+      client connections and
+      manages message routing
+    end note
+
+    note right of ClientHandler
+      Handles individual client
+      connections in separate threads
+      Processes commands:
+      - /list
+      - /w <user> <msg>
+      - bye
+    end note
+}
+
+' ========== CLIENT SIDE ==========
+package "Client Side" #DDDDFF {
+    class ChatClient {
+        {static} - PORT : int = 5001
+        --
+        {static} + main(String[] args) : void
+    }
+
+    class ServerListener {
+        - socket : Socket
+        --
+        + ServerListener(Socket)
+        + run() : void
+    }
+    
+    note right of ChatClient
+      Client application
+      Sends user input to server
+      and displays received messages
+    end note
+
+    note right of ServerListener
+      Runs in separate thread
+      to continuously receive
+      messages from server
+    end note
+}
+
+' Relationships within Server Side
+ChatServer "1" -- "*" ClientHandler : manages >
+ClientHandler ..|> Runnable : implements
+
+' Relationships within Client Side
+ChatClient ..> ServerListener : creates
+ServerListener ..|> Runnable : implements
+
+' Cross-boundary relationships
+ChatClient ..> ChatServer : connects to
+ClientHandler --> ChatServer : uses
+
+@enduml

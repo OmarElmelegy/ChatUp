@@ -1,0 +1,86 @@
+@startuml ChatSystem Sequence Diagram
+
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+
+actor "User 1" as User1
+participant "ChatClient 1" as Client1
+participant "ServerListener 1" as Listener1
+participant ChatServer
+participant "ClientHandler 1" as Handler1
+participant "ClientHandler 2" as Handler2
+participant "ServerListener 2" as Listener2
+participant "ChatClient 2" as Client2
+actor "User 2" as User2
+
+== Connection Phase ==
+User1 -> Client1: Start application
+Client1 -> ChatServer: Connect to port 5001
+ChatServer -> Handler1: Create ClientHandler
+ChatServer -> Handler1: Start thread
+activate Handler1
+
+Client1 -> User1: Prompt for username
+User1 -> Client1: Enter "Alice"
+Client1 -> Handler1: Send "Alice"
+Handler1 -> Handler1: Register username
+Handler1 -> Client1: "Welcome, Alice!"
+Handler1 -> ChatServer: broadcast("Alice joined")
+
+Client1 -> Listener1: Start listener thread
+activate Listener1
+
+User2 -> Client2: Start application
+Client2 -> ChatServer: Connect to port 5001
+ChatServer -> Handler2: Create ClientHandler
+ChatServer -> Handler2: Start thread
+activate Handler2
+
+Client2 -> User2: Prompt for username
+User2 -> Client2: Enter "Bob"
+Client2 -> Handler2: Send "Bob"
+Handler2 -> Handler2: Register username
+Handler2 -> Client2: "Welcome, Bob!"
+Handler2 -> Handler1: broadcast("Bob joined")
+Handler1 -> Listener1: "SERVER: Bob joined"
+Listener1 -> User1: Display "Bob joined"
+
+Client2 -> Listener2: Start listener thread
+activate Listener2
+
+== Public Message ==
+User1 -> Client1: Type "Hello everyone"
+Client1 -> Handler1: Send "Hello everyone"
+Handler1 -> Handler2: broadcast("Alice: Hello everyone")
+Handler2 -> Listener2: Send message
+Listener2 -> User2: Display "Alice: Hello everyone"
+
+== Private Message ==
+User2 -> Client2: Type "/w Alice Hi there!"
+Client2 -> Handler2: Send "/w Alice Hi there!"
+Handler2 -> Handler1: sendPrivateMessage()
+Handler1 -> Listener1: "Bob (Whisper): Hi there!"
+Listener1 -> User1: Display whisper
+Handler2 -> Listener2: "You whispered to Alice: Hi there!"
+Listener2 -> User2: Display confirmation
+
+== List Users ==
+User1 -> Client1: Type "/list"
+Client1 -> Handler1: Send "/list"
+Handler1 -> Handler1: Get all users
+Handler1 -> Listener1: Send user list
+Listener1 -> User1: Display "[Alice, Bob]"
+
+== Disconnection ==
+User2 -> Client2: Type "bye"
+Client2 -> Handler2: Send "bye"
+Handler2 -> Handler2: Exit loop
+Handler2 -> ChatServer: removeClient(Handler2)
+Handler2 -> Handler1: broadcast("Bob left")
+Handler1 -> Listener1: "SERVER: Bob left"
+Listener1 -> User1: Display "Bob left"
+deactivate Handler2
+deactivate Listener2
+
+@enduml
