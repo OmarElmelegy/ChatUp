@@ -3,6 +3,7 @@
 skinparam classAttributeIconSize 0
 skinparam shadowing false
 skinparam backgroundColor #FFFFFF
+skinparam linetype ortho
 skinparam class {
     BackgroundColor #FFFFCC
     BorderColor #000000
@@ -19,24 +20,30 @@ package "Server Side" #DDFFDD {
     class ChatServer {
         {static} - PORT : int = 5001
         {static} - clients : List<ClientHandler>
+        {static} - serverSocket : SSLServerSocket
         --
         {static} + main(String[] args) : void
         {static} + addClient(ClientHandler) : void
         {static} + removeClient(ClientHandler) : void
         {static} + broadcast(String, ClientHandler) : void
+        {static} + broadcastAll(String) : void
         {static} + sendPrivateMessage(String, String, String, ClientHandler) : void
         {static} + getClients() : List<ClientHandler>
+        {static} + shutdown() : void
     }
 
     class ClientHandler {
         - clientSocket : Socket
         - output : PrintWriter
         - username : String
+        {static} - formatter : DateTimeFormatter
         --
         + ClientHandler(Socket)
         + run() : void
         + sendMessage(String) : void
         + getUsername() : String
+        {static} + getFormatter() : DateTimeFormatter
+        + closeConnection() : void
     }
     
     note right of ChatServer
@@ -63,6 +70,20 @@ package "Client Side" #DDDDFF {
         {static} + main(String[] args) : void
     }
 
+    class ClientGUI {
+        - writer : PrintWriter
+        - reader : BufferedReader
+        - socket : SSLSocket
+        - username : String
+        {static} - SERVER_HOST : String
+        {static} - PORT : int
+        {static} - TIME_FORMATTER : DateTimeFormatter
+        --
+        + start(Stage) : void
+        + stop() : void
+        {static} + main(String[] args) : void
+    }
+
     class ServerListener {
         - socket : Socket
         --
@@ -71,15 +92,25 @@ package "Client Side" #DDDDFF {
     }
     
     note right of ChatClient
-      Client application
+      Command-line client application
+      Connects via SSL/TLS
       Sends user input to server
       and displays received messages
+    end note
+
+    note right of ClientGUI
+      JavaFX GUI client application
+      Provides modern interface
+      with text area, input field,
+      and login dialog
+      Uses SSL/TLS encryption
     end note
 
     note right of ServerListener
       Runs in separate thread
       to continuously receive
       messages from server
+      (used by CLI client)
     end note
 }
 
@@ -90,9 +121,11 @@ ClientHandler ..|> Runnable : implements
 ' Relationships within Client Side
 ChatClient ..> ServerListener : creates
 ServerListener ..|> Runnable : implements
+ClientGUI ..> javafx.application.Application : extends
 
 ' Cross-boundary relationships
-ChatClient ..> ChatServer : connects to
+ChatClient ..> ChatServer : connects to (SSL)
+ClientGUI ..> ChatServer : connects to (SSL)
 ClientHandler --> ChatServer : uses
 
 @enduml

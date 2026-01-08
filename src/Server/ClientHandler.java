@@ -1,9 +1,12 @@
 package Server;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 
 /**
@@ -34,6 +37,9 @@ public class ClientHandler implements Runnable {
     /** The username of the connected client */
     private String username;
 
+    /** Defining time formatter object with the correct format */
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+
     /**
      * Constructs a new ClientHandler for the given socket connection.
      * 
@@ -60,6 +66,32 @@ public class ClientHandler implements Runnable {
      */
     public String getUsername() {
         return username;
+    }
+
+    /**
+     * Gets the formatter for timestamp formatting.
+     * 
+     * @return the DateTimeFormatter instance
+     */
+    public static DateTimeFormatter getFormatter() {
+        return formatter;
+    }
+
+    /**
+     * Closes the client connection gracefully.
+     * Sends a goodbye message and closes the socket.
+     */
+    public void closeConnection() {
+        try {
+            if (output != null) {
+                output.println("SERVER: Connection closing...");
+            }
+            if (clientSocket != null && !clientSocket.isClosed()) {
+                clientSocket.close();
+            }
+        } catch (IOException e) {
+            System.err.println("Error closing connection for " + username + ": " + e.getMessage());
+        }
     }
 
     /**
@@ -120,17 +152,25 @@ public class ClientHandler implements Runnable {
                     break;
 
                 } else {
-                    System.out.println(this.username + " says: " + message);
-                    ChatServer.broadcast(this.username + ": " + message, this);
+                    String timestamp = LocalTime.now().format(formatter);
+
+                    System.out.println("[" + timestamp + "] " + this.username + " says: " + message);
+                    ChatServer.broadcast("[" + timestamp + "] " + this.username + ": " + message, this);
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Connection error with " + username + ": " + e.getMessage());
         } finally {
             // C. UNREGISTER: Remove myself when I leave (Important!)
             ChatServer.removeClient(this);
+            if (username != null) {
+                ChatServer.broadcast("SERVER: " + username + " has left the chat!", null);
+                System.out.println(username + " has disconnected.");
+            }
             try {
-                clientSocket.close();
+                if (clientSocket != null && !clientSocket.isClosed()) {
+                    clientSocket.close();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }

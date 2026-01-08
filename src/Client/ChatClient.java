@@ -1,10 +1,13 @@
 package Client;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.Socket;
 import java.util.Scanner;
+
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.SSLSocket;
 
 /**
  * ChatClient is the client application for connecting to the chat server.
@@ -39,10 +42,17 @@ public class ChatClient {
      * @param args command line arguments (not used)
      */
     public static void main(String[] args) {
-        try {
-            Socket socket = new Socket("127.0.0.1", PORT);
-            System.out.println("Connected to Server successfully!");
 
+        System.setProperty("javax.net.ssl.trustStore", "keystore.jks");
+        System.setProperty("javax.net.ssl.trustStorePassword", "password123");
+
+        try {
+            SSLSocketFactory sslFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+            SSLSocket socket = (SSLSocket) sslFactory.createSocket("127.0.0.1", PORT);
+
+            socket.startHandshake();
+
+            System.out.println("Connected to SECURE Server successfully!");
             // ... inside main, after connecting ...
 
             // 1. Setup Network IO

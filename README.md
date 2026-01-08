@@ -1,9 +1,10 @@
 # ChatSystem - Multi-Client Chat Application
 
-A Java-based client-server chat system that supports multiple concurrent users with real-time messaging, private messaging (whispers), and user management features.
+A Java-based client-server chat system that supports multiple concurrent users with real-time messaging, private messaging (whispers), and user management features. The system uses SSL/TLS encryption for secure communications and includes both command-line and JavaFX GUI client interfaces.
 
 ## 📋 Features
 
+- **SSL/TLS Security**: Encrypted communication between clients and server
 - **Multi-Client Support**: Multiple users can connect simultaneously
 - **Real-Time Messaging**: Instant message broadcasting to all connected users
 - **Private Messaging**: Whisper functionality for one-to-one communication using `/w <username> <message>`
@@ -11,6 +12,12 @@ A Java-based client-server chat system that supports multiple concurrent users w
 - **Thread-Based Architecture**: Each client connection runs in its own thread for concurrent handling
 - **Username System**: Users register with unique usernames upon connection
 - **Join/Leave Notifications**: Server broadcasts when users enter or exit the chat
+- **Dual Client Interfaces**: Both command-line (ChatClient) and GUI (ClientGUI) options
+- **Timestamps**: All messages display with precise timestamps
+- **Modern JavaFX GUI**: Dark-themed graphical interface with styled components
+- **Graceful Shutdown**: Server properly closes all client connections when shutting down
+- **Configurable Connection**: Clients can connect to custom hosts and ports
+- **Auto-Reconnect Notifications**: Clients are notified when server closes
 
 ## 🏗️ Architecture
 
@@ -32,25 +39,65 @@ The diagram below shows the clear separation between client-side and server-side
 
 ![ChatSystem Sequence Diagram](diagrams/ChatSystem%20Sequence%20Diagram.png)
 
+## 🖼️ Screenshots
+
+### Multiple Users Connected
+![Multiple Users Chatting](/img/MultipleUsers.png)
+
+The modern GUI supports multiple simultaneous users with real-time message synchronization.
+
+### User Left Notification
+![User Has Left Chat](/img/UserHasLeftChat.png)
+
+Server broadcasts when users disconnect, keeping all participants informed.
+
 ### Components
 
-- **ChatServer**: Main server application that accepts client connections and manages message routing
+**Server Side:**
+- **ChatServer**: Main server application that accepts SSL client connections and manages message routing
 - **ClientHandler**: Handles individual client connections in separate threads, processes commands and messages
-- **ChatClient**: Client application that connects to the server and sends user input
-- **ServerListener**: Runs in a separate thread on the client side to continuously receive messages from the server
+
+**Client Side:**
+- **ChatClient**: Command-line client application that connects to the server and sends user input
+- **ClientGUI**: JavaFX-based graphical client with modern dark-themed UI for chat interaction
+- **ServerListener**: Runs in a separate thread on the CLI client side to continuously receive messages from the server
+
+### UI Design
+
+The JavaFX GUI client features:
+- **Dark Theme**: Modern dark color scheme (#1e1e1e background, #0d7377 accent colors)
+- **Styled Components**: Custom-styled text areas, input fields, and buttons
+- **Header Bar**: Shows connection information (server host and port)
+- **Message Display**: Monospace font for clear message readability with timestamps
+- **Interactive Send Button**: Hover effects for better user experience
+- **Welcome Screen**: Displays available commands and usage instructions
+- **Responsive Layout**: Automatically adjusts to window resizing
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Java JDK 11 or higher
+- JavaFX SDK 23.0.1 (included in `lib/` directory)
 - Terminal/Command Prompt access
+- SSL keystore file (`keystore.jks`) for secure communication
 
 ### Compilation
 
+**For Command-Line Client:**
 ```bash
 cd src
-javac ChatServer.java ClientHandler.java ChatClient.java ServerListener.java
+javac Server/*.java Client/ChatClient.java Client/ServerListener.java
+```
+
+**For JavaFX GUI Client:**
+```bash
+javac --module-path lib --add-modules javafx.controls,javafx.fxml -d bin src/Server/*.java src/Client/*.java
+```
+
+Or use the provided script:
+```bash
+./compile.sh
 ```
 
 ### Running the Application
@@ -58,22 +105,50 @@ javac ChatServer.java ClientHandler.java ChatClient.java ServerListener.java
 #### 1. Start the Server
 
 ```bash
-cd src
-java ChatServer
+java --module-path lib --add-modules javafx.controls,javafx.fxml -cp bin Server.ChatServer
 ```
 
-The server will start listening on port **5001**.
+Or use the provided script:
+```bash
+./run-server.sh
+```
+
+The server will start listening on port **5001** with SSL/TLS enabled.
 
 #### 2. Start Client(s)
 
-Open separate terminal windows for each client:
-
+**Option A: Command-Line Client**
 ```bash
-cd src
-java ChatClient
+java --module-path lib --add-modules javafx.controls,javafx.fxml -cp bin Client.ChatClient
 ```
 
-Enter your username when prompted.
+Or use the provided script:
+```bash
+./run-client.sh
+```
+
+**Option B: JavaFX GUI Client**
+```bash
+java --module-path lib --add-modules javafx.controls,javafx.fxml -cp bin Client.ClientGUI
+```
+
+Or press **F5** in VS Code with the ClientGUI launch configuration.
+
+**Option C: Custom Server Connection**
+```bash
+java -Dserver.host=192.168.1.100 -Dserver.port=5001 \
+     --module-path lib --add-modules javafx.controls,javafx.fxml \
+     -cp bin Client.ClientGUI
+```
+
+Enter your username when prompted (GUI shows a dialog, CLI prompts in terminal).
+
+#### 3. Server Shutdown
+
+To gracefully stop the server, press **Ctrl+C**. The server will:
+- Notify all connected clients about the shutdown
+- Close all client connections properly
+- Clients will display a "Server Closed" message and exit automatically
 
 ## 💬 Usage
 
@@ -111,49 +186,101 @@ To regenerate documentation:
 ```bash
 javadoc -d docs -sourcepath src -author -version -windowtitle "ChatSystem Documentation" \
   -doctitle "ChatSystem API Documentation" \
-  src/ChatServer.java src/ClientHandler.java src/ChatClient.java src/ServerListener.java
+  src/Server/*.java src/Client/*.java
 ```
 
 ## 🔧 Configuration
 
-To change the server port, modify the `PORT` constant in both `ChatServer.java` and `ChatClient.java`:
+### Server Port
+
+To change the server port, modify the `PORT` constant in `ChatServer.java`, `ChatClient.java`, and `ClientGUI.java`:
 
 ```java
 static final int PORT = 5001; // Change to desired port
 ```
 
+### SSL/TLS Configuration
+
+The system uses a keystore file for SSL encryption. The keystore properties are set in the code:
+
+**Server** (`ChatServer.java`):
+```java
+System.setProperty("javax.net.ssl.keyStore", "../keystore.jks");
+System.setProperty("javax.net.ssl.keyStorePassword", "password123");
+```
+
+**Client** (`ChatClient.java` and `ClientGUI.java`):
+```java
+System.setProperty("javax.net.ssl.trustStore", "keystore.jks");
+System.setProperty("javax.net.ssl.trustStorePassword", "password123");
+```
+
 ## 🛠️ Technical Details
 
-- **Port**: 5001 (default)
-- **Protocol**: TCP/IP using Java Sockets
-- **Threading Model**: One thread per client connection + listener thread on client side
+- **Port**: 5001 (default, configurable)
+- **Protocol**: TCP/IP using Java Sockets with SSL/TLS encryption
+- **Security**: SSL/TLS using SSLSocket and SSLServerSocket
+- **Threading Model**: One thread per client connection + listener thread on CLI client side
+- **GUI Framework**: JavaFX 23.0.1 for graphical client with custom dark theme
 - **Concurrency**: Thread-safe client list management with proper synchronization
+- **Time Formatting**: HH:mm:ss format for message timestamps
+- **Shutdown Handling**: Graceful server shutdown with client notification via shutdown hooks
+- **UI Design**: Modern dark theme with custom-styled components and hover effects
 
 ## 📁 Project Structure
 
 ```
-ChatSystem/
+ChatApp-Java/
 ├── src/                         # Source code
-│   ├── ChatServer.java          # Server main class
-│   ├── ClientHandler.java       # Server-side client handler
-│   ├── ChatClient.java          # Client main class
-│   └── ServerListener.java      # Client-side message receiver
+│   ├── Server/
+│   │   ├── ChatServer.java      # Server main class with SSL
+│   │   └── ClientHandler.java   # Server-side client handler
+│   └── Client/
+│       ├── ChatClient.java      # CLI client main class
+│       ├── ClientGUI.java       # JavaFX GUI client
+│       └── ServerListener.java  # Client-side message receiver (CLI)
+├── lib/                         # JavaFX libraries
+│   ├── javafx.base.jar
+│   ├── javafx.controls.jar
+│   ├── javafx.fxml.jar
+│   ├── javafx.graphics.jar
+│   └── ... (native libraries)
 ├── diagrams/                    # UML diagrams
 │   ├── class-diagram.puml       # PlantUML class diagram source
-│   ├── sequence-diagram.puml    # PlantUML sequence diagram source
-│   ├── ChatSystem Class Diagram.png
-│   └── ChatSystem Sequence Diagram.png
+│   └── sequence-diagram.puml    # PlantUML sequence diagram source
 ├── docs/                        # Javadoc documentation
 │   └── index.html               # Documentation entry point
+├── .vscode/                     # VS Code configuration
+│   ├── settings.json            # Java and JavaFX settings
+│   └── launch.json              # Run configurations
+├── keystore.jks                 # SSL keystore file
+├── MultipleUsers.png            # Screenshot: Multiple users chatting
+├── UserHasLeftChat.png          # Screenshot: User disconnect notification
+├── compile.sh                   # Compilation script
+├── run-server.sh                # Server launch script
+├── run-client.sh                # Client launch script
+├── DEPLOYMENT.md                # Deployment guide (ngrok, port forwarding)
+├── DEPLOYMENT_TEST_RESULTS.md   # Deployment test results
 └── README.md                    # This file
 ```
 
 ## 🐛 Known Issues
 
-- Port must be free before starting the server (use different port if 5001 is in use)
 - No username uniqueness validation (duplicate usernames are allowed)
 - No message history for newly connected clients
-- Server shutdown requires manual termination (Ctrl+C)
+- SSL keystore password is hardcoded (should use environment variables in production)
+
+## ✨ Recent Updates
+
+### Version 1.1 (January 2026)
+- ✅ **Enhanced UI**: Modern dark-themed GUI with styled components
+- ✅ **Graceful Shutdown**: Server properly notifies and closes all clients on shutdown
+- ✅ **Configurable Connection**: Support for custom server host and port via system properties
+- ✅ **Auto-Reconnect Handling**: Clients display alerts when server closes unexpectedly
+- ✅ **Improved Diagrams**: Class and sequence diagrams now use orthogonal (rectangular) lines
+- ✅ **Better Error Handling**: Enhanced connection error messages and user notifications
+- ✅ **Welcome Screen**: GUI displays command help on startup
+- ✅ **Deployment Ready**: Added ngrok support and deployment documentation
 
 ## 📝 License
 
@@ -165,5 +292,7 @@ ChatSystem Team - AFMS Study Project
 
 ---
 
-**Version**: 1.0  
-**Last Updated**: January 2026
+**Version**: 1.1  
+**Last Updated**: January 8, 2026
+
+**Key Features**: SSL/TLS Encryption • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown • Configurable Deployment

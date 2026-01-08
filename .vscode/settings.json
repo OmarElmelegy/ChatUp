@@ -1,0 +1,7 @@
+{
+    "java.debug.settings.onBuildFailureProceed": true,
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar"
+    ],
+    "java.jdt.ls.vmargs": "--module-path lib --add-modules javafx.controls,javafx.fxml"
+}
