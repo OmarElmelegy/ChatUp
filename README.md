@@ -25,7 +25,7 @@ A Java-based client-server chat system that supports multiple concurrent users w
 
 The diagram below shows the clear separation between client-side and server-side components:
 
-![ChatSystem Class Diagram](diagrams/ChatSystem%20Class%20Diagram.png)
+![ChatSystem Class Diagram](/diagrams/ChatSystem_Class_Diagram.png)
 
 **Server Side (Green)**:
 - `ChatServer`: Main server that accepts connections and routes messages
@@ -37,7 +37,7 @@ The diagram below shows the clear separation between client-side and server-side
 
 ### Sequence Diagram
 
-![ChatSystem Sequence Diagram](diagrams/ChatSystem%20Sequence%20Diagram.png)
+![ChatSystem Sequence Diagram](/diagrams/ChatSystem_Sequence_Diagram.png)
 
 ## 🖼️ Screenshots
 
