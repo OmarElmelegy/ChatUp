@@ -256,11 +256,6 @@ ChatApp-Java/
 ├── keystore.jks                 # SSL keystore file
 ├── MultipleUsers.png            # Screenshot: Multiple users chatting
 ├── UserHasLeftChat.png          # Screenshot: User disconnect notification
-├── compile.sh                   # Compilation script
-├── run-server.sh                # Server launch script
-├── run-client.sh                # Client launch script
-├── DEPLOYMENT.md                # Deployment guide (ngrok, port forwarding)
-├── DEPLOYMENT_TEST_RESULTS.md   # Deployment test results
 └── README.md                    # This file
 ```
 
@@ -282,13 +277,7 @@ ChatApp-Java/
 - ✅ **Welcome Screen**: GUI displays command help on startup
 - ✅ **Deployment Ready**: Added ngrok support and deployment documentation
 
-## 📝 License
-
-This project is for educational purposes.
-
-## 👥 Authors
-
-ChatSystem Team - AFMS Study Project
+---
 
 ---
 
