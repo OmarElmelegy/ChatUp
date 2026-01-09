@@ -233,6 +233,8 @@ ChatApp-Java/
 │   ├── settings.json            # Java and JavaFX settings
 │   └── launch.json              # Run configurations
 ├── keystore.jks                 # SSL keystore file
+├── MultipleUsers.png            # Screenshot: Multiple users chatting
+├── UserHasLeftChat.png          # Screenshot: User disconnect notification
 └── README.md                    # This file
 ```
 
