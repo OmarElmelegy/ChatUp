@@ -95,22 +95,12 @@ javac Server/*.java Client/ChatClient.java Client/ServerListener.java
 javac --module-path lib --add-modules javafx.controls,javafx.fxml -d bin src/Server/*.java src/Client/*.java
 ```
 
-Or use the provided script:
-```bash
-./compile.sh
-```
-
 ### Running the Application
 
 #### 1. Start the Server
 
 ```bash
 java --module-path lib --add-modules javafx.controls,javafx.fxml -cp bin Server.ChatServer
-```
-
-Or use the provided script:
-```bash
-./run-server.sh
 ```
 
 The server will start listening on port **5001** with SSL/TLS enabled.
@@ -122,24 +112,12 @@ The server will start listening on port **5001** with SSL/TLS enabled.
 java --module-path lib --add-modules javafx.controls,javafx.fxml -cp bin Client.ChatClient
 ```
 
-Or use the provided script:
-```bash
-./run-client.sh
-```
-
 **Option B: JavaFX GUI Client**
 ```bash
 java --module-path lib --add-modules javafx.controls,javafx.fxml -cp bin Client.ClientGUI
 ```
 
 Or press **F5** in VS Code with the ClientGUI launch configuration.
-
-**Option C: Custom Server Connection**
-```bash
-java -Dserver.host=192.168.1.100 -Dserver.port=5001 \
-     --module-path lib --add-modules javafx.controls,javafx.fxml \
-     -cp bin Client.ClientGUI
-```
 
 Enter your username when prompted (GUI shows a dialog, CLI prompts in terminal).
 
@@ -239,6 +217,7 @@ ChatApp-Java/
 │       ├── ChatClient.java      # CLI client main class
 │       ├── ClientGUI.java       # JavaFX GUI client
 │       └── ServerListener.java  # Client-side message receiver (CLI)
+|
 ├── lib/                         # JavaFX libraries
 │   ├── javafx.base.jar
 │   ├── javafx.controls.jar
@@ -254,13 +233,6 @@ ChatApp-Java/
 │   ├── settings.json            # Java and JavaFX settings
 │   └── launch.json              # Run configurations
 ├── keystore.jks                 # SSL keystore file
-├── MultipleUsers.png            # Screenshot: Multiple users chatting
-├── UserHasLeftChat.png          # Screenshot: User disconnect notification
-├── compile.sh                   # Compilation script
-├── run-server.sh                # Server launch script
-├── run-client.sh                # Client launch script
-├── DEPLOYMENT.md                # Deployment guide (ngrok, port forwarding)
-├── DEPLOYMENT_TEST_RESULTS.md   # Deployment test results
 └── README.md                    # This file
 ```
 
@@ -281,14 +253,6 @@ ChatApp-Java/
 - ✅ **Better Error Handling**: Enhanced connection error messages and user notifications
 - ✅ **Welcome Screen**: GUI displays command help on startup
 - ✅ **Deployment Ready**: Added ngrok support and deployment documentation
-
-## 📝 License
-
-This project is for educational purposes.
-
-## 👥 Authors
-
-ChatSystem Team - AFMS Study Project
 
 ---
 

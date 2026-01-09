@@ -150,7 +150,7 @@ public class ChatServer {
                 String timestamp = LocalTime.now().format(ClientHandler.getFormatter());
 
                 client.sendMessage("[" + timestamp + "] " + senderName + " (Whisper): " + msg);
-                sender.sendMessage("[" + timestamp + "]  + You whispered to " + targetName + ": " + msg); // Confirmation
+                sender.sendMessage("[" + timestamp + "] You whispered to " + targetName + ": " + msg); // Confirmation
                 found = true;
                 break; // Stop looking
             }
