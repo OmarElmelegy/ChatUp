@@ -276,11 +276,10 @@ ChatApp-Java/
 - ✅ **Improved Diagrams**: Class and sequence diagrams now use orthogonal (rectangular) lines
 - ✅ **Better Error Handling**: Enhanced connection error messages and user notifications
 - ✅ **Welcome Screen**: GUI displays command help on startup
-- ✅ **Deployment Ready**: Added ngrok support and deployment documentation
 
 ---
 
 **Version**: 2.0  
 **Last Updated**: January 19, 2026
 
-**Key Features**: SSL/TLS Encryption • File Transfer • Binary Protocol • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown • Configurable Deployment
+**Key Features**: SSL/TLS Encryption • File Transfer • Binary Protocol • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown
