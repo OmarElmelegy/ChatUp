@@ -1,8 +1,12 @@
 package Client;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
@@ -24,13 +28,15 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 /**
  * ClientGUI is a JavaFX-based graphical user interface for the chat client.
  * It provides a modern, user-friendly interface for connecting to the secure
  * chat server,
- * sending messages, and viewing chat history with timestamps.
+ * sending messages, viewing chat history with timestamps, and transferring
+ * files.
  * 
  * <p>
  * Key features:
@@ -39,23 +45,26 @@ import javafx.stage.Stage;
  * <li>User-friendly login dialog for username entry</li>
  * <li>Real-time message display with timestamps</li>
  * <li>Text input field with send button</li>
+ * <li>File transfer support with file chooser dialog</li>
+ * <li>Binary protocol for efficient message and file transmission</li>
  * <li>Support for all server commands (/list, /w, bye)</li>
  * <li>Non-blocking message reception using background threads</li>
- * <li>Automatic connection error handling</li>
+ * <li>Automatic connection error handling with intentional close detection</li>
+ * <li>Silent graceful shutdown when user closes the window</li>
  * </ul>
  * 
  * @author ChatSystem Team
- * @version 1.0
+ * @version 2.0
  * @see ChatClient
  * @see ServerListener
  */
 public class ClientGUI extends Application {
 
-    /** Writer for sending messages to the server */
-    private PrintWriter writer;
+    /** output stream for sending messages to the server */
+    private DataOutputStream output;
 
     /** Reader for receiving messages from the server */
-    private BufferedReader reader;
+    private DataInputStream input;
 
     /** Secure socket connection to the server */
     private SSLSocket socket;
@@ -77,6 +86,15 @@ public class ClientGUI extends Application {
 
     /** The username of the current user */
     private String username;
+
+    /** Flag to track if we're intentionally closing the connection */
+    private volatile boolean intentionalClose = false;
+
+    /**
+     * Defining the msgType bytes at the first sector of the new protocl messages
+     */
+    private static final byte msgType_TEXT = 1;
+    private static final byte msgType_FILE = 2;
 
     /**
      * Starts the JavaFX application and initializes the chat GUI.
@@ -110,15 +128,14 @@ public class ClientGUI extends Application {
             System.out.println("Connected to server at " + SERVER_HOST + ":" + PORT);
 
             // Initialize Streams
-            writer = new PrintWriter(socket.getOutputStream(), true);
-            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            output = new DataOutputStream(socket.getOutputStream());
+            input = new DataInputStream(socket.getInputStream());
 
             // Send the handshake username immediately
-            writer.println(username);
+            output.writeByte(msgType_TEXT);
+            output.writeUTF(username);
+            output.flush();
 
-            // Reade the "Welcome" line from server
-            String welcome = reader.readLine();
-            System.out.println(welcome);
         } catch (Exception e) {
             // If connection fails, show error and stop
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -197,7 +214,36 @@ public class ClientGUI extends Application {
 
         inputField.setOnAction(event -> sendButton.fire());
 
-        HBox bottomBar = new HBox(inputField, sendButton);
+        Button fileButton = new Button("File");
+        fileButton.setStyle(
+                "-fx-background-color: #0d7377; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-font-size: 13px; " +
+                        "-fx-padding: 8px 20px; " +
+                        "-fx-border-color: #404040; " +
+                        "-fx-border-width: 1px; " +
+                        "-fx-cursor: hand;");
+        fileButton.setOnMouseEntered(e -> fileButton.setStyle(
+                "-fx-background-color: #14ffec; " +
+                        "-fx-text-fill: #1e1e1e; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-font-size: 13px; " +
+                        "-fx-padding: 8px 20px; " +
+                        "-fx-border-color: #14ffec; " +
+                        "-fx-border-width: 1px; " +
+                        "-fx-cursor: hand;"));
+        fileButton.setOnMouseExited(e -> fileButton.setStyle(
+                "-fx-background-color: #0d7377; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-font-size: 13px; " +
+                        "-fx-padding: 8px 20px; " +
+                        "-fx-border-color: #404040; " +
+                        "-fx-border-width: 1px; " +
+                        "-fx-cursor: hand;"));
+
+        HBox bottomBar = new HBox(inputField, sendButton, fileButton);
         bottomBar.setStyle("-fx-background-color: #2b2b2b; -fx-padding: 10px;");
         root.setBottom(bottomBar);
 
@@ -207,7 +253,13 @@ public class ClientGUI extends Application {
         sendButton.setOnAction(event -> {
             String text = inputField.getText();
             if (!text.isEmpty()) {
-                writer.println(text);
+                try {
+                    output.writeByte(msgType_TEXT);
+                    output.writeUTF(text);
+                    output.flush();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
                 if (text.startsWith("/w")) {
 
                 } else {
@@ -219,39 +271,100 @@ public class ClientGUI extends Application {
             }
         });
 
+        // File button
+        fileButton.setOnAction(evt -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Choose file to send");
+            File selected = chooser.showOpenDialog(primaryStage);
+            if (selected == null)
+                return;
+
+            // Send in background to avoid blocking UI
+            new Thread(() -> {
+                try (FileInputStream fis = new FileInputStream(selected)) {
+
+                    synchronized (output) {
+                        output.writeByte(msgType_FILE);
+                        output.writeUTF(selected.getName());
+                        long length = selected.length();
+                        output.writeLong(length);
+
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = fis.read(buffer)) != -1) {
+                            output.write(buffer, 0, read);
+                        }
+                        output.flush();
+                    }
+                    Platform.runLater(() -> chatArea.appendText("Me: Sent file " + selected.getName() + "\n"));
+
+                } catch (IOException ex) {
+                    Platform.runLater(() -> chatArea.appendText("Error sending file:" + ex.getMessage()));
+                }
+            }).start();
+        });
+
         // Background Listener, we start a new thread so we don't freeze the GUI
         new Thread(() -> {
-
             try {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    // CRITICAL: We are in a background thread.
-                    // We must use Platform.runLater to touch the GUI.
-                    String finalLine = line;
+                while (true) {
+                    byte type = input.readByte();
+
+                    switch (type) {
+                        case msgType_TEXT:
+                            String line = input.readUTF();
+                            // CRITICAL: We are in a background thread.
+                            // We must use Platform.runLater to touch the GUI.
+                            Platform.runLater(() -> {
+                                chatArea.appendText(line + "\n");
+                            });
+                            break;
+
+                        case msgType_FILE:
+                            String fileName = input.readUTF();
+                            long size = input.readLong();
+                            byte[] data = new byte[(int) size];
+                            input.readFully(data);
+
+                            // Save Logic: Use Platform.runLater to show file chooser
+                            Platform.runLater(() -> {
+                                FileChooser saveChooser = new FileChooser();
+                                saveChooser.setTitle("Save File");
+                                saveChooser.setInitialFileName(fileName);
+                                File saveFile = saveChooser.showSaveDialog(primaryStage);
+
+                                if (saveFile != null) {
+                                    try {
+                                        Path path = saveFile.toPath();
+                                        Files.write(path, data);
+                                        chatArea.appendText(
+                                                "System: Saved file to " + saveFile.getAbsolutePath() + "\n");
+                                    } catch (IOException ex) {
+                                        chatArea.appendText("System: Error saving file - " + ex.getMessage() + "\n");
+                                    }
+                                } else {
+                                    chatArea.appendText("System: File save cancelled\n");
+                                }
+                            });
+                            break;
+
+                        default:
+                            System.err.println("Unknown message type: " + type);
+                            break;
+                    }
+                }
+            } catch (Exception e) {
+                if (!intentionalClose) {
                     Platform.runLater(() -> {
-                        chatArea.appendText(finalLine + "\n");
+                        chatArea.appendText("\n[Connection Lost]\n");
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("Connection Error");
+                        alert.setHeaderText("Lost connection to server");
+                        alert.setContentText("The connection to the server was lost unexpectedly.");
+                        alert.showAndWait();
+                        Platform.exit();
                     });
                 }
-                // Server closed connection
-                Platform.runLater(() -> {
-                    chatArea.appendText("\n[SERVER CLOSED - Connection terminated]\n");
-                    Alert alert = new Alert(Alert.AlertType.WARNING);
-                    alert.setTitle("Server Disconnected");
-                    alert.setHeaderText("Connection Lost");
-                    alert.setContentText("The server has closed. The application will now exit.");
-                    alert.showAndWait();
-                    Platform.exit();
-                });
-            } catch (Exception e) {
-                Platform.runLater(() -> {
-                    chatArea.appendText("\n[Connection Lost]\n");
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Connection Error");
-                    alert.setHeaderText("Lost connection to server");
-                    alert.setContentText("The connection to the server was lost unexpectedly.");
-                    alert.showAndWait();
-                    Platform.exit();
-                });
             }
 
         }).start();
@@ -260,21 +373,28 @@ public class ClientGUI extends Application {
         primaryStage.setScene(scene);
         primaryStage.setTitle("Secure Chat - " + username);
         primaryStage.setOnCloseRequest(e -> {
+            intentionalClose = true;
             try {
-                if (writer != null) {
-                    writer.println("bye");
+                if (output != null) {
+                    try {
+                        output.writeByte(msgType_TEXT);
+                        output.writeUTF("bye");
+                        output.flush();
+                    } catch (Exception ex) {
+                        // Ignore errors during intentional close
+                    }
                 }
                 if (socket != null && !socket.isClosed()) {
                     socket.close();
                 }
             } catch (Exception ex) {
-                ex.printStackTrace();
+                // Ignore errors during intentional close
             }
         });
         primaryStage.show();
 
         // Welcome message
-        chatArea.appendText("╔═══════════════════════════════════════════════════════════╗\n");
+        chatArea.appendText("╔════════════════════════════════════════════════════════════════╗\n");
         String welcomeText = "Welcome to Secure Chat, " + username + "!";
         int boxWidth = 61; // Width between the two ║ characters (59 + 2 for the ║)
         int contentWidth = boxWidth - 2; // Subtract 2 for the ║ on each side
@@ -284,12 +404,12 @@ public class ClientGUI extends Application {
         int rightPad = totalPadding - leftPad; // This ensures any odd number is handled correctly
         chatArea.appendText(
                 "║" + " ".repeat(Math.max(0, leftPad)) + welcomeText + " ".repeat(Math.max(0, rightPad)) + "║\n");
-        chatArea.appendText("╠═══════════════════════════════════════════════════════════╣\n");
-        chatArea.appendText("║  Commands:                                                ║\n");
-        chatArea.appendText("║    /list          - View all connected users              ║\n");
-        chatArea.appendText("║    /w <user> <msg> - Send private message (whisper)       ║\n");
-        chatArea.appendText("║    bye            - Disconnect from chat                  ║\n");
-        chatArea.appendText("╚═══════════════════════════════════════════════════════════╝\n\n");
+        chatArea.appendText("╠════════════════════════════════════════════════════════════════╣\n");
+        chatArea.appendText("║  Commands:                                                     ║\n");
+        chatArea.appendText("║    /list          - View all connected users                   ║\n");
+        chatArea.appendText("║    /w <user> <msg> - Send private message (whisper)            ║\n");
+        chatArea.appendText("║    bye            - Disconnect from chat                       ║\n");
+        chatArea.appendText("╚════════════════════════════════════════════════════════════════╝\n\n");
     }
 
     /**
@@ -300,8 +420,15 @@ public class ClientGUI extends Application {
      */
     @Override
     public void stop() throws Exception {
-        if (writer != null) {
-            writer.println(username + " has left the chat..");
+        intentionalClose = true;
+        if (output != null) {
+            try {
+                output.writeByte(msgType_TEXT);
+                output.writeUTF("bye");
+                output.flush();
+            } catch (Exception ex) {
+                // Ignore errors during intentional close
+            }
         }
         if (socket != null && !socket.isClosed()) {
             socket.close();

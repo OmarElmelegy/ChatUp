@@ -1,0 +1,58 @@
+# Compiled class files
+*.class
+bin/
+out/
+target/
+
+# JavaFX SDK (large library files)
+javafx-sdk*/
+javafx-sdk-*/
+
+# JavaFX libraries
+lib/*.jar
+
+# Log files
+*.log
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Virtual machine crash logs
+hs_err_pid*
+
+# IDE specific files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Argument files
+*.argfile
+@/tmp/*.argfile
+
+# Build and dependency directories
+node_modules/
+.gradle/
+build/

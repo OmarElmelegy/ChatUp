@@ -75,7 +75,11 @@ public class ChatServer {
     public static void broadcast(String message, ClientHandler sender) {
         for (ClientHandler client : clients) {
             if (client != sender) {
-                client.sendMessage(message);
+                try {
+                    client.sendText(message);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
@@ -87,7 +91,11 @@ public class ChatServer {
      */
     public static void broadcastAll(String message) {
         for (ClientHandler client : clients) {
-            client.sendMessage(message);
+            try {
+                client.sendText(message);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -149,14 +157,37 @@ public class ChatServer {
             if (client.getUsername().equals(targetName)) {
                 String timestamp = LocalTime.now().format(ClientHandler.getFormatter());
 
-                client.sendMessage("[" + timestamp + "] " + senderName + " (Whisper): " + msg);
-                sender.sendMessage("[" + timestamp + "] You whispered to " + targetName + ": " + msg); // Confirmation
+                try {
+                    client.sendText("[" + timestamp + "] " + senderName + " (Whisper): " + msg);
+                    sender.sendText("[" + timestamp + "] You whispered to " + targetName + ": " + msg); // Confirmation
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 found = true;
                 break; // Stop looking
             }
         }
         if (!found) {
-            sender.sendMessage("Error: User '" + targetName + "' not found.");
+            try {
+                sender.sendText("Error: User '" + targetName + "' not found.");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static void broadcastFile(String filename, byte[] content, ClientHandler sender) {
+        for (ClientHandler client : clients) {
+            if (!client.getUsername().equals(sender.getUsername())) {
+                try {
+                    client.sendText("Incoming file from " + sender.getUsername());
+                    client.sendFile(filename, content);
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 

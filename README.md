@@ -7,6 +7,8 @@ A Java-based client-server chat system that supports multiple concurrent users w
 - **SSL/TLS Security**: Encrypted communication between clients and server
 - **Multi-Client Support**: Multiple users can connect simultaneously
 - **Real-Time Messaging**: Instant message broadcasting to all connected users
+- **File Transfer**: Send and receive files securely between users with a dedicated File button
+- **Binary Protocol**: Efficient message and file transmission using DataInputStream/DataOutputStream
 - **Private Messaging**: Whisper functionality for one-to-one communication using `/w <username> <message>`
 - **User List**: View all currently connected users with `/list` command
 - **Thread-Based Architecture**: Each client connection runs in its own thread for concurrent handling
@@ -15,9 +17,10 @@ A Java-based client-server chat system that supports multiple concurrent users w
 - **Dual Client Interfaces**: Both command-line (ChatClient) and GUI (ClientGUI) options
 - **Timestamps**: All messages display with precise timestamps
 - **Modern JavaFX GUI**: Dark-themed graphical interface with styled components
+- **Silent Close**: GUI closes gracefully without error dialogs when user clicks X button
 - **Graceful Shutdown**: Server properly closes all client connections when shutting down
 - **Configurable Connection**: Clients can connect to custom hosts and ports
-- **Auto-Reconnect Notifications**: Clients are notified when server closes
+- **Auto-Reconnect Notifications**: Clients are notified when server closes unexpectedly
 
 ## 🏗️ Architecture
 
@@ -25,7 +28,7 @@ A Java-based client-server chat system that supports multiple concurrent users w
 
 The diagram below shows the clear separation between client-side and server-side components:
 
-![ChatSystem Class Diagram](/diagrams/ChatSystem_Class_Diagram.png)
+![ChatSystem Class Diagram](/diagrams/ChatSystem%20Class%20Diagram.png)
 
 **Server Side (Green)**:
 - `ChatServer`: Main server that accepts connections and routes messages
@@ -37,7 +40,7 @@ The diagram below shows the clear separation between client-side and server-side
 
 ### Sequence Diagram
 
-![ChatSystem Sequence Diagram](/diagrams/ChatSystem_Sequence_Diagram.png)
+![ChatSystem Sequence Diagram](/diagrams/ChatSystem%20Sequence%20Diagram.png)
 
 ## 🖼️ Screenshots
 
@@ -50,6 +53,11 @@ The modern GUI supports multiple simultaneous users with real-time message synch
 ![User Has Left Chat](/img/UserHasLeftChat.png)
 
 Server broadcasts when users disconnect, keeping all participants informed.
+
+### File Transfer
+![User Sending File](/img/UserSendingFile.png)
+
+Users can send files securely using the File button, with recipient receiving a save dialog.
 
 ### Components
 
@@ -69,9 +77,11 @@ The JavaFX GUI client features:
 - **Styled Components**: Custom-styled text areas, input fields, and buttons
 - **Header Bar**: Shows connection information (server host and port)
 - **Message Display**: Monospace font for clear message readability with timestamps
-- **Interactive Send Button**: Hover effects for better user experience
+- **Interactive Buttons**: Send and File buttons with hover effects for better user experience
+- **File Transfer UI**: File chooser dialog for sending files, save dialog for receiving files
 - **Welcome Screen**: Displays available commands and usage instructions
 - **Responsive Layout**: Automatically adjusts to window resizing
+- **Silent Close**: No error dialogs when user intentionally closes the window
 
 ## 🚀 Getting Started
 
@@ -197,13 +207,16 @@ System.setProperty("javax.net.ssl.trustStorePassword", "password123");
 
 - **Port**: 5001 (default, configurable)
 - **Protocol**: TCP/IP using Java Sockets with SSL/TLS encryption
+- **Message Protocol**: Binary protocol using DataInputStream/DataOutputStream with message type byte (1=TEXT, 2=FILE)
 - **Security**: SSL/TLS using SSLSocket and SSLServerSocket
 - **Threading Model**: One thread per client connection + listener thread on CLI client side
 - **GUI Framework**: JavaFX 23.0.1 for graphical client with custom dark theme
 - **Concurrency**: Thread-safe client list management with proper synchronization
+- **File Transfer**: Supports files up to 50MB with streaming upload/download
 - **Time Formatting**: HH:mm:ss format for message timestamps
 - **Shutdown Handling**: Graceful server shutdown with client notification via shutdown hooks
 - **UI Design**: Modern dark theme with custom-styled components and hover effects
+- **Error Handling**: Intentional close detection to prevent false error dialogs
 
 ## 📁 Project Structure
 
@@ -246,6 +259,15 @@ ChatApp-Java/
 
 ## ✨ Recent Updates
 
+### Version 2.0 (January 2026)
+- ✅ **File Transfer**: Send and receive files securely between users
+- ✅ **Binary Protocol**: Implemented efficient DataInputStream/DataOutputStream protocol
+- ✅ **Silent Close**: Graceful window closure without error dialogs
+- ✅ **Enhanced UI**: Added File button with matching style and hover effects
+- ✅ **File Size Limit**: Server enforces 50MB file size limit for security
+- ✅ **Background File Transfer**: Non-blocking file uploads to prevent UI freezing
+- ✅ **Save Dialog**: Interactive file save dialog when receiving files
+
 ### Version 1.1 (January 2026)
 - ✅ **Enhanced UI**: Modern dark-themed GUI with styled components
 - ✅ **Graceful Shutdown**: Server properly notifies and closes all clients on shutdown
@@ -258,7 +280,7 @@ ChatApp-Java/
 
 ---
 
-**Version**: 1.1  
-**Last Updated**: January 8, 2026
+**Version**: 2.0  
+**Last Updated**: January 19, 2026
 
-**Key Features**: SSL/TLS Encryption • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown • Configurable Deployment
+**Key Features**: SSL/TLS Encryption • File Transfer • Binary Protocol • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown • Configurable Deployment

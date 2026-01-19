@@ -27,6 +27,7 @@ package "Server Side" #DDFFDD {
         {static} + removeClient(ClientHandler) : void
         {static} + broadcast(String, ClientHandler) : void
         {static} + broadcastAll(String) : void
+        {static} + broadcastFile(String, byte[], ClientHandler) : void
         {static} + sendPrivateMessage(String, String, String, ClientHandler) : void
         {static} + getClients() : List<ClientHandler>
         {static} + shutdown() : void
@@ -34,13 +35,16 @@ package "Server Side" #DDFFDD {
 
     class ClientHandler {
         - clientSocket : Socket
-        - output : PrintWriter
+        - output : DataOutputStream
         - username : String
         {static} - formatter : DateTimeFormatter
+        {static} - msgType_TEXT : byte = 1
+        {static} - msgType_FILE : byte = 2
         --
         + ClientHandler(Socket)
         + run() : void
-        + sendMessage(String) : void
+        + sendText(String) : void
+        + sendFile(String, byte[]) : void
         + getUsername() : String
         {static} + getFormatter() : DateTimeFormatter
         + closeConnection() : void
@@ -59,6 +63,10 @@ package "Server Side" #DDFFDD {
       - /list
       - /w <user> <msg>
       - bye
+      Binary protocol:
+      - msgType_TEXT (1): text messages
+      - msgType_FILE (2): file transfers
+      File size limit: 50MB
     end note
 }
 
@@ -71,13 +79,16 @@ package "Client Side" #DDDDFF {
     }
 
     class ClientGUI {
-        - writer : PrintWriter
-        - reader : BufferedReader
+        - output : DataOutputStream
+        - input : DataInputStream
         - socket : SSLSocket
         - username : String
+        - intentionalClose : boolean
         {static} - SERVER_HOST : String
         {static} - PORT : int
         {static} - TIME_FORMATTER : DateTimeFormatter
+        {static} - msgType_TEXT : byte = 1
+        {static} - msgType_FILE : byte = 2
         --
         + start(Stage) : void
         + stop() : void
@@ -102,8 +113,11 @@ package "Client Side" #DDDDFF {
       JavaFX GUI client application
       Provides modern interface
       with text area, input field,
-      and login dialog
+      Send button, and File button
       Uses SSL/TLS encryption
+      Binary protocol for messages
+      and file transfers
+      Supports silent window close
     end note
 
     note right of ServerListener

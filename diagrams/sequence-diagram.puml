@@ -83,6 +83,20 @@ Handler1 -> Handler1: Get all users
 Handler1 -> Listener1: Send user list (encrypted)
 Listener1 -> User1: Display "[Alice, Bob]"
 
+== File Transfer ==
+User1 -> Client1: Click "File" button
+Client1 -> Client1: Open file chooser
+User1 -> Client1: Select file "document.pdf"
+Client1 -> Handler1: Send msgType_FILE + filename + size + data (encrypted)
+note right: File sent in 8KB chunks\nBackground thread prevents UI freeze
+Handler1 -> Handler1: Validate file size (<50MB)
+Handler1 -> Handler2: broadcastFile(filename, data)
+Handler2 -> Listener2: Send msgType_FILE + filename + size + data (encrypted)
+Listener2 -> User2: Open save dialog
+User2 -> Client2: Choose save location
+Client2 -> Client2: Write file to disk
+Listener2 -> User2: Display "Saved file to path"
+
 == Disconnection ==
 User2 -> Client2: Type "bye"
 Client2 -> Handler2: Send "bye" (encrypted)
