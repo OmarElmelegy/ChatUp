@@ -9,7 +9,7 @@ javafx-sdk*/
 javafx-sdk-*/
 
 # JavaFX libraries
-lib/*.jar
+lib/
 
 # Log files
 *.log

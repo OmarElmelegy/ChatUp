@@ -82,7 +82,7 @@ public class ClientGUI extends Application {
     private static final int PORT = Integer.parseInt(System.getProperty("server.port", "5001"));
 
     /** Formatter for displaying message timestamps */
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /** The username of the current user */
     private String username;
@@ -132,9 +132,11 @@ public class ClientGUI extends Application {
             input = new DataInputStream(socket.getInputStream());
 
             // Send the handshake username immediately
-            output.writeByte(msgType_TEXT);
-            output.writeUTF(username);
-            output.flush();
+            synchronized (output) {
+                output.writeByte(msgType_TEXT);
+                output.writeUTF(username);
+                output.flush();
+            }
 
         } catch (Exception e) {
             // If connection fails, show error and stop
@@ -254,9 +256,11 @@ public class ClientGUI extends Application {
             String text = inputField.getText();
             if (!text.isEmpty()) {
                 try {
-                    output.writeByte(msgType_TEXT);
-                    output.writeUTF(text);
-                    output.flush();
+                    synchronized (output) {
+                        output.writeByte(msgType_TEXT);
+                        output.writeUTF(text);
+                        output.flush();
+                    }
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
@@ -377,9 +381,11 @@ public class ClientGUI extends Application {
             try {
                 if (output != null) {
                     try {
-                        output.writeByte(msgType_TEXT);
-                        output.writeUTF("bye");
-                        output.flush();
+                        synchronized (output) {
+                            output.writeByte(msgType_TEXT);
+                            output.writeUTF("bye");
+                            output.flush();
+                        }
                     } catch (Exception ex) {
                         // Ignore errors during intentional close
                     }
@@ -423,9 +429,11 @@ public class ClientGUI extends Application {
         intentionalClose = true;
         if (output != null) {
             try {
-                output.writeByte(msgType_TEXT);
-                output.writeUTF("bye");
-                output.flush();
+                synchronized (output) {
+                    output.writeByte(msgType_TEXT);
+                    output.writeUTF("bye");
+                    output.flush();
+                }
             } catch (Exception ex) {
                 // Ignore errors during intentional close
             }

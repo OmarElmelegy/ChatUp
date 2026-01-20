@@ -7,6 +7,7 @@ A Java-based client-server chat system that supports multiple concurrent users w
 - **SSL/TLS Security**: Encrypted communication between clients and server
 - **Multi-Client Support**: Multiple users can connect simultaneously
 - **Real-Time Messaging**: Instant message broadcasting to all connected users
+- **Message Persistence**: SQLite database stores chat history for new users joining
 - **File Transfer**: Send and receive files securely between users with a dedicated File button
 - **Binary Protocol**: Efficient message and file transmission using DataInputStream/DataOutputStream
 - **Private Messaging**: Whisper functionality for one-to-one communication using `/w <username> <message>`
@@ -21,6 +22,7 @@ A Java-based client-server chat system that supports multiple concurrent users w
 - **Graceful Shutdown**: Server properly closes all client connections when shutting down
 - **Configurable Connection**: Clients can connect to custom hosts and ports
 - **Auto-Reconnect Notifications**: Clients are notified when server closes unexpectedly
+- **Thread-Safe Operations**: Synchronized output streams prevent data corruption
 
 ## 🏗️ Architecture
 
@@ -64,6 +66,7 @@ Users can send files securely using the File button, with recipient receiving a 
 **Server Side:**
 - **ChatServer**: Main server application that accepts SSL client connections and manages message routing
 - **ClientHandler**: Handles individual client connections in separate threads, processes commands and messages
+- **DatabaseManager**: Manages SQLite database for persistent message storage and retrieval
 
 **Client Side:**
 - **ChatClient**: Command-line client application that connects to the server and sends user input
@@ -208,12 +211,13 @@ System.setProperty("javax.net.ssl.trustStorePassword", "password123");
 - **Port**: 5001 (default, configurable)
 - **Protocol**: TCP/IP using Java Sockets with SSL/TLS encryption
 - **Message Protocol**: Binary protocol using DataInputStream/DataOutputStream with message type byte (1=TEXT, 2=FILE)
+- **Database**: SQLite (chat.db) for persistent message storage
 - **Security**: SSL/TLS using SSLSocket and SSLServerSocket
 - **Threading Model**: One thread per client connection + listener thread on CLI client side
 - **GUI Framework**: JavaFX 23.0.1 for graphical client with custom dark theme
 - **Concurrency**: Thread-safe client list management with proper synchronization
 - **File Transfer**: Supports files up to 50MB with streaming upload/download
-- **Time Formatting**: HH:mm:ss format for message timestamps
+- **Time Formatting**: yyyy-MM-dd HH:mm:ss format for message timestamps
 - **Shutdown Handling**: Graceful server shutdown with client notification via shutdown hooks
 - **UI Design**: Modern dark theme with custom-styled components and hover effects
 - **Error Handling**: Intentional close detection to prevent false error dialogs
@@ -225,7 +229,8 @@ ChatApp-Java/
 ├── src/                         # Source code
 │   ├── Server/
 │   │   ├── ChatServer.java      # Server main class with SSL
-│   │   └── ClientHandler.java   # Server-side client handler
+│   │   ├── ClientHandler.java   # Server-side client handler
+│   │   └── DatabaseManager.java # SQLite database operations
 │   └── Client/
 │       ├── ChatClient.java      # CLI client main class
 │       ├── ClientGUI.java       # JavaFX GUI client
@@ -254,12 +259,14 @@ ChatApp-Java/
 ## 🐛 Known Issues
 
 - No username uniqueness validation (duplicate usernames are allowed)
-- No message history for newly connected clients
 - SSL keystore password is hardcoded (should use environment variables in production)
+- Private messages are not stored in the database
 
 ## ✨ Recent Updates
 
 ### Version 2.0 (January 2026)
+- ✅ **Message Persistence**: SQLite database stores chat history for new users
+- ✅ **Thread Synchronization**: Fixed race conditions in output stream operations
 - ✅ **File Transfer**: Send and receive files securely between users
 - ✅ **Binary Protocol**: Implemented efficient DataInputStream/DataOutputStream protocol
 - ✅ **Silent Close**: Graceful window closure without error dialogs
@@ -280,6 +287,6 @@ ChatApp-Java/
 ---
 
 **Version**: 2.0  
-**Last Updated**: January 19, 2026
+**Last Updated**: January 20, 2026
 
-**Key Features**: SSL/TLS Encryption • File Transfer • Binary Protocol • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown
+**Key Features**: SSL/TLS Encryption • File Transfer • Binary Protocol • Message Persistence • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown

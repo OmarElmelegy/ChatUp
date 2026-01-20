@@ -50,6 +50,14 @@ package "Server Side" #DDFFDD {
         + closeConnection() : void
     }
     
+    class DatabaseManager {
+        {static} - url : String
+        --
+        {static} + createNewTable() : void
+        {static} + insertMessage(String, String, String) : void
+        {static} + getAllMessages() : ArrayList<String>
+    }
+    
     note right of ChatServer
       Main server that accepts
       client connections and
@@ -67,6 +75,14 @@ package "Server Side" #DDFFDD {
       - msgType_TEXT (1): text messages
       - msgType_FILE (2): file transfers
       File size limit: 50MB
+    end note
+    
+    note right of DatabaseManager
+      Manages SQLite database
+      for persistent message storage
+      - Stores all public messages
+      - Provides history for new users
+      - Uses chat.db file
     end note
 }
 
@@ -131,6 +147,8 @@ package "Client Side" #DDDDFF {
 ' Relationships within Server Side
 ChatServer "1" -- "*" ClientHandler : manages >
 ClientHandler ..|> Runnable : implements
+ClientHandler ..> DatabaseManager : uses
+ChatServer ..> DatabaseManager : uses
 
 ' Relationships within Client Side
 ChatClient ..> ServerListener : creates

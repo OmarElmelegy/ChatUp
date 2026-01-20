@@ -10,6 +10,7 @@ participant "ChatClient 1" as Client1
 participant "ServerListener 1" as Listener1
 participant ChatServer
 participant "ClientHandler 1" as Handler1
+participant DatabaseManager
 participant "ClientHandler 2" as Handler2
 participant "ServerListener 2" as Listener2
 participant "ChatClient 2" as Client2
@@ -51,6 +52,9 @@ Client2 -> User2: Prompt for username
 User2 -> Client2: Enter "Bob"
 Client2 -> Handler2: Send "Bob" (encrypted)
 Handler2 -> Handler2: Register username
+Handler2 -> DatabaseManager: getAllMessages()
+DatabaseManager -> Handler2: Return message history
+Handler2 -> Client2: Send message history (encrypted)
 Handler2 -> Client2: "Welcome, Bob!" (encrypted)
 Handler2 -> Handler1: broadcast("Bob joined")
 Handler1 -> Listener1: "SERVER: Bob joined" (encrypted)
@@ -63,6 +67,8 @@ activate Listener2
 User1 -> Client1: Type "Hello everyone"
 Client1 -> Handler1: Send "Hello everyone" (encrypted)
 note right: All messages encrypted via SSL
+Handler1 -> DatabaseManager: insertMessage("Alice", "Hello everyone", timestamp)
+DatabaseManager -> DatabaseManager: Store in chat.db
 Handler1 -> Handler2: broadcast("Alice: Hello everyone")
 Handler2 -> Listener2: Send message (encrypted)
 Listener2 -> User2: Display "Alice: Hello everyone"
@@ -90,6 +96,8 @@ User1 -> Client1: Select file "document.pdf"
 Client1 -> Handler1: Send msgType_FILE + filename + size + data (encrypted)
 note right: File sent in 8KB chunks\nBackground thread prevents UI freeze
 Handler1 -> Handler1: Validate file size (<50MB)
+Handler1 -> DatabaseManager: insertMessage("Alice", "[File: document.pdf]", timestamp)
+DatabaseManager -> DatabaseManager: Store file reference in chat.db
 Handler1 -> Handler2: broadcastFile(filename, data)
 Handler2 -> Listener2: Send msgType_FILE + filename + size + data (encrypted)
 Listener2 -> User2: Open save dialog

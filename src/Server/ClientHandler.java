@@ -15,16 +15,28 @@ import java.util.ArrayList;
  * <p>
  * This class is responsible for:
  * <ul>
- * <li>Reading messages from the client</li>
+ * <li>Reading text messages and files from the client using binary
+ * protocol</li>
  * <li>Processing special commands (/list, /w, bye)</li>
  * <li>Broadcasting public messages to all users</li>
+ * <li>Broadcasting files to all users (excluding sender)</li>
  * <li>Handling private messages between users</li>
+ * <li>Persisting message history to SQLite database</li>
  * <li>Managing client connection lifecycle</li>
+ * <li>Enforcing file size limits (50MB maximum)</li>
+ * </ul>
+ * 
+ * <p>
+ * Binary Protocol:
+ * <ul>
+ * <li>msgType_TEXT (1): Text message with UTF-8 string content</li>
+ * <li>msgType_FILE (2): File transfer with filename, size, and binary data</li>
  * </ul>
  * 
  * @author ChatSystem Team
- * @version 1.0
+ * @version 2.0
  * @see ChatServer
+ * @see DatabaseManager
  */
 public class ClientHandler implements Runnable {
     /** The socket connection to the client */
@@ -37,9 +49,11 @@ public class ClientHandler implements Runnable {
     private String username;
 
     /** Defining time formatter object with the correct format */
-    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /** Defining the msgType bytes at the first sector of the new protocl messages */
+    /**
+     * Defining the msgType bytes at the first sector of the new protocl messages
+     */
     private static final byte msgType_TEXT = 1;
     private static final byte msgType_FILE = 2;
 
@@ -120,10 +134,12 @@ public class ClientHandler implements Runnable {
      * Handles the complete lifecycle of a client connection:
      * <ul>
      * <li>Reads and registers the username</li>
-     * <li>Sends welcome message</li>message
-     * message
+     * <li>Sends welcome message</li>
      * <li>Broadcasts join notification</li>
+     * <li>Sends message history from database</li>
      * <li>Processes incoming messages and commands</li>
+     * <li>Handles file transfers with size validation</li>
+     * <li>Persists public messages to database</li>
      * <li>Handles disconnection and cleanup</li>
      * </ul>
      * 
@@ -133,6 +149,17 @@ public class ClientHandler implements Runnable {
      * <li>/list - Show all connected users</li>
      * <li>/w &lt;username&gt; &lt;message&gt; - Send private message</li>
      * <li>bye - Disconnect from server</li>
+     * </ul>
+     * 
+     * <p>
+     * File Transfer Protocol:
+     * <ul>
+     * <li>Receives msgType_FILE (2) byte</li>
+     * <li>Reads filename as UTF-8 string</li>
+     * <li>Reads file size as long (8 bytes)</li>
+     * <li>Validates size is under 50MB limit</li>
+     * <li>Reads file data as byte array</li>
+     * <li>Broadcasts to all other clients</li>
      * </ul>
      */
     public void run() {
@@ -154,10 +181,16 @@ public class ClientHandler implements Runnable {
 
             ChatServer.broadcast("SERVER: " + username + " has joined the chat!", this);
 
-            Boolean running = true;
+            ArrayList<String> listofMessages = DatabaseManager.getAllMessages();
 
+            for (String msg : listofMessages) {
+                this.sendText(msg);
+            }
+
+            Boolean running = true;
             while (running) {
                 msgType = input.readByte();
+                String timestamp = LocalTime.now().format(formatter);
 
                 switch (msgType) {
                     case msgType_TEXT:
@@ -168,7 +201,7 @@ public class ClientHandler implements Runnable {
                                 listofUsers.add(client.getUsername());
                             }
 
-                            this.sendText("List of users currently connected are: " + listofUsers);
+                            this.sendText("List of users currently connected : " + listofUsers);
 
                         } else if (message.startsWith("/w ")) {
                             String[] parts = message.split(" ", 3);
@@ -183,9 +216,9 @@ public class ClientHandler implements Runnable {
                             running = false;
 
                         } else {
-                            String timestamp = LocalTime.now().format(formatter);
 
                             System.out.println("[" + timestamp + "] " + this.username + " says: " + message);
+                            DatabaseManager.insertMessage(username, message, timestamp);
                             ChatServer.broadcast("[" + timestamp + "] " + this.username + ": " + message, this);
                         }
 
@@ -202,6 +235,9 @@ public class ClientHandler implements Runnable {
                             input.readFully(fileData); // Read all bytes
 
                             System.out.println("Received file: " + fileName);
+
+                            message = "[File: " + fileName + "]";
+                            DatabaseManager.insertMessage(username, message, timestamp);
 
                             // Broadcast to others
                             ChatServer.broadcastFile(fileName, fileData, this);

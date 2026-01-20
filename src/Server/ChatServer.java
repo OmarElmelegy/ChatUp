@@ -17,15 +17,20 @@ import javax.net.ssl.SSLServerSocketFactory;
  * <p>
  * Key features:
  * <ul>
+ * <li>SSL/TLS encrypted connections for secure communication</li>
  * <li>Accepts multiple simultaneous client connections</li>
- * <li>Broadcasts messages to all connected clients</li>
+ * <li>Broadcasts text messages to all connected clients</li>
+ * <li>Broadcasts files to all connected clients</li>
  * <li>Supports private messaging between users</li>
  * <li>Maintains a list of active clients</li>
+ * <li>Persistent message storage using SQLite database</li>
+ * <li>Graceful shutdown with client notification</li>
  * </ul>
  * 
  * @author ChatSystem Team
- * @version 1.0
+ * @version 2.0
  * @see ClientHandler
+ * @see DatabaseManager
  */
 public class ChatServer {
     /** The port number on which the server listens for connections */
@@ -177,6 +182,14 @@ public class ChatServer {
         }
     }
 
+    /**
+     * Broadcasts a file to all connected clients except the sender.
+     * Notifies each recipient that a file is incoming before sending the file data.
+     * 
+     * @param filename the name of the file being sent
+     * @param content  the binary content of the file as a byte array
+     * @param sender   the ClientHandler of the sender (will not receive the file)
+     */
     public static void broadcastFile(String filename, byte[] content, ClientHandler sender) {
         for (ClientHandler client : clients) {
             if (!client.getUsername().equals(sender.getUsername())) {
@@ -213,6 +226,8 @@ public class ChatServer {
             serverSocket = (SSLServerSocket) sslFactory.createServerSocket(PORT);
             System.out.println("SECURE Server started on port " + PORT + ". Waiting for connections...");
             System.out.println("Press Ctrl+C to stop the server.");
+
+            DatabaseManager.createNewTable();
 
             while (true) {
                 Socket client = serverSocket.accept();
