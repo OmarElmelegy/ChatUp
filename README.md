@@ -1,4 +1,4 @@
-# ChatSystem - Multi-Client Chat Application
+# ChatUp - Multi-Client Chat Application
 
 A Java-based client-server chat system that supports multiple concurrent users with real-time messaging, private messaging (whispers), and user management features. The system uses SSL/TLS encryption for secure communications and includes both command-line and JavaFX GUI client interfaces.
 
