@@ -23,14 +23,14 @@ package "Server Side" #DDFFDD {
         {static} - serverSocket : SSLServerSocket
         --
         {static} + main(String[] args) : void
-        {static} + addClient(ClientHandler) : void
-        {static} + removeClient(ClientHandler) : void
-        {static} + broadcast(String, ClientHandler) : void
-        {static} + broadcastAll(String) : void
-        {static} + broadcastFile(String, byte[], ClientHandler) : void
-        {static} + sendPrivateMessage(String, String, String, ClientHandler) : void
+        {static} + addClient(ClientHandler) : void [synchronized]
+        {static} + removeClient(ClientHandler) : void [synchronized]
+        {static} + broadcast(String, ClientHandler) : void [thread-safe]
+        {static} + broadcastAll(String) : void [thread-safe]
+        {static} + broadcastFile(String, byte[], ClientHandler) : void [thread-safe]
+        {static} + sendPrivateMessage(String, String, String, ClientHandler) : void [thread-safe]
         {static} + getClients() : List<ClientHandler>
-        {static} + shutdown() : void
+        {static} + shutdown(boolean) : void
     }
 
     class ClientHandler {
@@ -46,6 +46,7 @@ package "Server Side" #DDFFDD {
         + sendText(String) : void
         + sendFile(String, byte[]) : void
         + getUsername() : String
+        + getClientSocket() : Socket
         {static} + getFormatter() : DateTimeFormatter
         + closeConnection() : void
     }
@@ -54,35 +55,76 @@ package "Server Side" #DDFFDD {
         {static} - url : String
         --
         {static} + createNewTable() : void
-        {static} + insertMessage(String, String, String) : void
-        {static} + getAllMessages() : ArrayList<String>
+        {static} + createUsersTable() : void
+        {static} + insertMessage(String, String, String, String, String, String) : void
+        {static} + getAllMessages(String) : ArrayList<String>
+        {static} + registerUser(String, String) : boolean
+        {static} + verifyPassword(String, String) : boolean
+        {static} + userExists(String) : boolean
+        {static} - hashPassword(String) : String
     }
     
     note right of ChatServer
       Main server that accepts
       client connections and
       manages message routing
+      
+      Thread-safe operations:
+      - Synchronized client list access
+      - Atomic username validation
+      - Concurrent message broadcasting
     end note
 
     note right of ClientHandler
       Handles individual client
       connections in separate threads
-      Processes commands:
-      - /list
-      - /w <user> <msg>
-      - bye
+      
+      Features:
+      - Password authentication on login
+      - Username validation (no duplicates)
+      - Atomic registration
+      - Overflow protection for large files
+      - Proper resource cleanup
+      
+      Authentication Commands:
+      - CHECK_USER: verify if username exists
+      - VERIFY_PASSWORD: authenticate user
+      - REGISTER_PASSWORD: create new account
+      
+      Chat Commands:
+      - /list: show users
+      - /w <user> <msg>: private message
+      - bye: disconnect
+      
       Binary protocol:
       - msgType_TEXT (1): text messages
       - msgType_FILE (2): file transfers
+      
       File size limit: 50MB
     end note
     
     note right of DatabaseManager
       Manages SQLite database
       for persistent message storage
+      
+      Features:
       - Stores all public messages
+      - Tracks private messages
+      - Logs IP addresses
       - Provides history for new users
       - Uses chat.db file
+      
+      User Management:
+      - SHA-256 password hashing
+      - User registration and login
+      - Secure password verification
+      - Unique username enforcement
+      
+      Schema:
+      - messages table: sender, sender_ip,
+        recipient, recipient_ip, content, timestamp
+      - users table: username, password_hash,
+        created_at
     end note
 }
 

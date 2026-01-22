@@ -4,7 +4,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 
@@ -15,9 +15,13 @@ import java.util.ArrayList;
  * <p>
  * This class is responsible for:
  * <ul>
+ * <li>Authenticating users with password verification (SHA-256)</li>
+ * <li>Registering new users with hashed password storage</li>
  * <li>Reading text messages and files from the client using binary
  * protocol</li>
  * <li>Processing special commands (/list, /w, bye)</li>
+ * <li>Processing authentication commands (CHECK_USER, VERIFY_PASSWORD,
+ * REGISTER_PASSWORD)</li>
  * <li>Broadcasting public messages to all users</li>
  * <li>Broadcasting files to all users (excluding sender)</li>
  * <li>Handling private messages between users</li>
@@ -33,8 +37,19 @@ import java.util.ArrayList;
  * <li>msgType_FILE (2): File transfer with filename, size, and binary data</li>
  * </ul>
  * 
+ * <p>
+ * Authentication Protocol:
+ * <ul>
+ * <li>CHECK_USER: Client requests username existence check</li>
+ * <li>USER_EXISTS / USER_NEW: Server response for username check</li>
+ * <li>VERIFY_PASSWORD: Client sends password for authentication</li>
+ * <li>REGISTER_PASSWORD: Client sends password for new account</li>
+ * <li>PASSWORD_CORRECT / PASSWORD_INCORRECT: Server password verification
+ * response</li>
+ * </ul>
+ * 
  * @author ChatSystem Team
- * @version 2.0
+ * @version 2.2
  * @see ChatServer
  * @see DatabaseManager
  */
@@ -101,6 +116,10 @@ public class ClientHandler implements Runnable {
         return username;
     }
 
+    public Socket getClientSocket() {
+        return clientSocket;
+    }
+
     /**
      * Gets the formatter for timestamp formatting.
      * 
@@ -162,27 +181,81 @@ public class ClientHandler implements Runnable {
      * <li>Broadcasts to all other clients</li>
      * </ul>
      */
+    @Override
     public void run() {
         try {
             DataInputStream input = new DataInputStream(clientSocket.getInputStream());
-            // Initialize the class-level output writer
             output = new DataOutputStream(clientSocket.getOutputStream());
 
-            // A. REGISTER: Add myself to the list
-            ChatServer.addClient(this);
-
-            // Read username first and send it back in the broadcast
+            // Read initial message
             byte msgType = input.readByte();
-            String message = input.readUTF();
-            this.username = message;
-            output.writeByte(msgType_TEXT);
-            output.writeUTF("Welcome, " + username + "!");
-            output.flush();
+            String initialMessage = input.readUTF();
 
+            if (initialMessage.startsWith("CHECK_USER:")) {
+                String requestedUsername = initialMessage.substring("CHECK_USER:".length());
+
+                // Check if user exists in database
+                boolean exists = DatabaseManager.userExists(requestedUsername);
+
+                synchronized (output) {
+                    output.writeByte(msgType_TEXT);
+
+                    if (exists) {
+                        // ═══ EXISTING USER PATH ═══
+                        output.writeUTF("USER_EXISTS");
+                        output.flush();
+
+                        // Read password verification request
+                        msgType = input.readByte(); // Read msgType
+                        String passwordMessage = input.readUTF();
+
+                        if (passwordMessage.startsWith("VERIFY_PASSWORD:")) {
+                            String password = passwordMessage.substring("VERIFY_PASSWORD:".length());
+
+                            if (DatabaseManager.verifyPassword(requestedUsername, password)) {
+                                output.writeByte(msgType_TEXT);
+                                output.writeUTF("PASSWORD_CORRECT");
+                                output.flush();
+                            } else {
+                                output.writeByte(msgType_TEXT);
+                                output.writeUTF("PASSWORD_INCORRECT");
+                                output.flush();
+                                clientSocket.close();
+                                return; // End connection
+                            }
+                        }
+
+                    } else {
+                        // ═══ NEW USER PATH ═══
+                        output.writeUTF("USER_NEW");
+                        output.flush();
+
+                        // Read password registration
+                        msgType = input.readByte(); // Read msgType
+                        String registerMessage = input.readUTF();
+
+                        if (registerMessage.startsWith("REGISTER_PASSWORD:")) {
+                            String password = registerMessage.substring("REGISTER_PASSWORD:".length());
+                            DatabaseManager.registerUser(requestedUsername, password);
+                        }
+                    }
+
+                    // Read final username confirmation (OUTSIDE if-else, for BOTH paths)
+                    msgType = input.readByte();
+                    this.username = input.readUTF();
+                }
+
+            } else {
+                // Fallback for old clients without authentication
+                this.username = initialMessage;
+            }
+
+            // ═══ REST OF THE CODE (unchanged) ═══
+            ChatServer.addClient(this);
+            sendText("Welcome, " + username + "!");
             ChatServer.broadcast("SERVER: " + username + " has joined the chat!", this);
 
-            ArrayList<String> listofMessages = DatabaseManager.getAllMessages();
-
+            ArrayList<String> listofMessages = DatabaseManager.getAllMessages(username);
             for (String msg : listofMessages) {
                 this.sendText(msg);
             }
@@ -190,11 +263,11 @@ public class ClientHandler implements Runnable {
             Boolean running = true;
             while (running) {
                 msgType = input.readByte();
-                String timestamp = LocalTime.now().format(formatter);
+                String timestamp = LocalDateTime.now().format(formatter);
 
                 switch (msgType) {
                     case msgType_TEXT:
-                        message = input.readUTF().trim();
+                        String message = input.readUTF().trim();
                         if (message.equals("/list")) {
                             ArrayList<String> listofUsers = new ArrayList<>();
                             for (ClientHandler client : ChatServer.getClients()) {
@@ -218,7 +291,8 @@ public class ClientHandler implements Runnable {
                         } else {
 
                             System.out.println("[" + timestamp + "] " + this.username + " says: " + message);
-                            DatabaseManager.insertMessage(username, message, timestamp);
+                            DatabaseManager.insertMessage(username, clientSocket.getInetAddress().getHostAddress(),
+                                    "ALL", "---", message, timestamp);
                             ChatServer.broadcast("[" + timestamp + "] " + this.username + ": " + message, this);
                         }
 
@@ -228,8 +302,15 @@ public class ClientHandler implements Runnable {
                         String fileName = input.readUTF();
                         long fileSize = input.readLong();
                         if (fileSize > 50_000_000) {
-                            sendText("SERVER: File too large. Rejected.");
-                            input.skipBytes((int) fileSize); // Skip the data
+                            sendText("SERVER: File too large (max 50MB). Rejected.");
+                            // Skip file data in chunks to avoid int overflow
+                            long remaining = fileSize;
+                            byte[] skipBuffer = new byte[8192];
+                            while (remaining > 0) {
+                                int toSkip = (int) Math.min(remaining, skipBuffer.length);
+                                input.readFully(skipBuffer, 0, toSkip);
+                                remaining -= toSkip;
+                            }
                         } else {
                             byte[] fileData = new byte[(int) fileSize];
                             input.readFully(fileData); // Read all bytes
@@ -237,7 +318,8 @@ public class ClientHandler implements Runnable {
                             System.out.println("Received file: " + fileName);
 
                             message = "[File: " + fileName + "]";
-                            DatabaseManager.insertMessage(username, message, timestamp);
+                            DatabaseManager.insertMessage(username, clientSocket.getInetAddress().getHostAddress(),
+                                    "ALL", "---", message, timestamp);
 
                             // Broadcast to others
                             ChatServer.broadcastFile(fileName, fileData, this);

@@ -2,9 +2,12 @@ package Server;
 
 import java.io.IOException;
 import java.net.Socket;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
@@ -18,19 +21,28 @@ import javax.net.ssl.SSLServerSocketFactory;
  * Key features:
  * <ul>
  * <li>SSL/TLS encrypted connections for secure communication</li>
+ * <li>Thread pooling with ExecutorService for efficient client handling</li>
+ * <li>Configurable maximum concurrent client connections</li>
  * <li>Accepts multiple simultaneous client connections</li>
  * <li>Broadcasts text messages to all connected clients</li>
  * <li>Broadcasts files to all connected clients</li>
  * <li>Supports private messaging between users</li>
  * <li>Maintains a list of active clients</li>
  * <li>Persistent message storage using SQLite database</li>
- * <li>Graceful shutdown with client notification</li>
+ * <li>Graceful shutdown with client notification and thread pool cleanup</li>
  * </ul>
  * 
+ * <p>
+ * The server uses a fixed thread pool of {@value #MAX_CLIENTS} threads to
+ * handle
+ * client connections efficiently, preventing resource exhaustion from unlimited
+ * thread creation.
+ * 
  * @author ChatSystem Team
- * @version 2.0
+ * @version 2.2
  * @see ClientHandler
  * @see DatabaseManager
+ * @see ExecutorService
  */
 public class ChatServer {
     /** The port number on which the server listens for connections */
@@ -41,6 +53,13 @@ public class ChatServer {
 
     /** Server socket instance for managing shutdown */
     private static SSLServerSocket serverSocket;
+
+    // Static variable to allow access from static methods
+    private static ExecutorService clientThreadPool;
+    private static final int MAX_CLIENTS = 50;
+
+    /** Indicates if the server is running */
+    private static boolean running = true;
 
     /**
      * Gets the list of all connected clients.
@@ -57,8 +76,10 @@ public class ChatServer {
      * 
      * @param client the ClientHandler instance to add
      */
-    public static void addClient(ClientHandler client) {
-        clients.add(client);
+    public static synchronized void addClient(ClientHandler client) {
+        synchronized (clients) {
+            clients.add(client);
+        }
     }
 
     /**
@@ -67,8 +88,10 @@ public class ChatServer {
      * 
      * @param client the ClientHandler instance to remove
      */
-    public static void removeClient(ClientHandler client) {
-        clients.remove(client);
+    public static synchronized void removeClient(ClientHandler client) {
+        synchronized (clients) {
+            clients.remove(client);
+        }
     }
 
     /**
@@ -78,7 +101,11 @@ public class ChatServer {
      * @param sender  the ClientHandler of the sender (will not receive the message)
      */
     public static void broadcast(String message, ClientHandler sender) {
-        for (ClientHandler client : clients) {
+        List<ClientHandler> clientsCopy;
+        synchronized (clients) {
+            clientsCopy = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsCopy) {
             if (client != sender) {
                 try {
                     client.sendText(message);
@@ -95,7 +122,11 @@ public class ChatServer {
      * @param message the message to broadcast to everyone
      */
     public static void broadcastAll(String message) {
-        for (ClientHandler client : clients) {
+        List<ClientHandler> clientsCopy;
+        synchronized (clients) {
+            clientsCopy = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsCopy) {
             try {
                 client.sendText(message);
             } catch (IOException e) {
@@ -132,6 +163,34 @@ public class ChatServer {
 
         // Close server socket
         try {
+            System.out.println("Server is shutting down...");
+            running = false;
+
+            // Shutdown thread pool gracefully
+            if (clientThreadPool != null) {
+                System.out.println("Shutting down thread pool...");
+
+                clientThreadPool.shutdown(); // Don't accept new tasks
+
+                try {
+                    // Wait for existing tasks to complete (max 60 seconds)
+                    if (!clientThreadPool.awaitTermination(60, TimeUnit.SECONDS)) {
+                        System.out.println("Thread pool didn't terminate in time, forcing shutdown...");
+                        clientThreadPool.shutdownNow(); // Force shutdown
+
+                        // Wait a bit more for forced shutdown
+                        if (!clientThreadPool.awaitTermination(10, TimeUnit.SECONDS)) {
+                            System.err.println("Thread pool did not terminate!");
+                        }
+                    }
+                    System.out.println("Thread pool shut down successfully");
+                } catch (InterruptedException e) {
+                    System.err.println("Shutdown interrupted, forcing...");
+                    clientThreadPool.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+            }
+
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
             }
@@ -158,14 +217,21 @@ public class ChatServer {
      */
     public static void sendPrivateMessage(String senderName, String targetName, String msg, ClientHandler sender) {
         boolean found = false;
-        for (ClientHandler client : clients) {
+        List<ClientHandler> clientsCopy;
+        synchronized (clients) {
+            clientsCopy = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsCopy) {
             if (client.getUsername().equals(targetName)) {
-                String timestamp = LocalTime.now().format(ClientHandler.getFormatter());
+                String timestamp = LocalDateTime.now().format(ClientHandler.getFormatter());
 
                 try {
                     client.sendText("[" + timestamp + "] " + senderName + " (Whisper): " + msg);
                     sender.sendText("[" + timestamp + "] You whispered to " + targetName + ": " + msg); // Confirmation
 
+                    DatabaseManager.insertMessage(senderName,
+                            sender.getClientSocket().getInetAddress().getHostAddress(), targetName,
+                            client.getClientSocket().getInetAddress().getHostAddress(), msg, timestamp);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -191,7 +257,11 @@ public class ChatServer {
      * @param sender   the ClientHandler of the sender (will not receive the file)
      */
     public static void broadcastFile(String filename, byte[] content, ClientHandler sender) {
-        for (ClientHandler client : clients) {
+        List<ClientHandler> clientsCopy;
+        synchronized (clients) {
+            clientsCopy = new ArrayList<>(clients);
+        }
+        for (ClientHandler client : clientsCopy) {
             if (!client.getUsername().equals(sender.getUsername())) {
                 try {
                     client.sendText("Incoming file from " + sender.getUsername());
@@ -212,13 +282,15 @@ public class ChatServer {
      * @param args command line arguments (not used)
      */
     public static void main(String[] args) {
-
         System.setProperty("javax.net.ssl.keyStore", "keystore.jks");
         System.setProperty("javax.net.ssl.keyStorePassword", "password123");
 
-        // Add shutdown hook to handle Ctrl+C gracefully
+        //  Create ChatServer instance
+        ChatServer server = new ChatServer();
+
+        // Add shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            shutdown(false); // Don't call System.exit from within shutdown hook
+            server.shutdownInstance(); //  Call instance method
         }));
 
         try {
@@ -228,15 +300,19 @@ public class ChatServer {
             System.out.println("Press Ctrl+C to stop the server.");
 
             DatabaseManager.createNewTable();
+            DatabaseManager.createUsersTable();
 
-            while (true) {
-                Socket client = serverSocket.accept();
-                System.out.println("New Client connected: " + client.getInetAddress());
+            //  Initialize thread pool ONCE and STORE it
+            ChatServer.clientThreadPool = Executors.newFixedThreadPool(MAX_CLIENTS);
+            System.out.println("Thread pool initialized with " + MAX_CLIENTS + " threads");
 
-                ClientHandler handler = new ClientHandler(client);
-                new Thread(handler).start();
-                // REMOVED: Don't try to get username here - it's not available yet!
-                // The ClientHandler will print the username when it's ready
+            while (running) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("New client connected: " + clientSocket.getInetAddress());
+                ClientHandler handler = new ClientHandler(clientSocket);
+
+                // Use the STORED thread pool
+                ChatServer.clientThreadPool.execute(handler);
             }
         } catch (java.net.BindException e) {
             System.err.println("\n╔════════════════════════════════════════════════════════════╗");
@@ -256,5 +332,61 @@ public class ChatServer {
                 System.exit(1);
             }
         }
+    }
+
+    /**
+     * Instance method for graceful shutdown with thread pool cleanup.
+     */
+    private void shutdownInstance() {
+        System.out.println("\nShutting down server...");
+        broadcastAll("SERVER: Server is shutting down. All connections will be closed.");
+
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Close all client connections
+        for (ClientHandler client : new ArrayList<>(clients)) {
+            try {
+                client.closeConnection();
+            } catch (Exception e) {
+                System.err.println("Error closing client connection: " + e.getMessage());
+            }
+        }
+
+        // Shutdown thread pool
+        if (clientThreadPool != null) {
+            System.out.println("Shutting down thread pool...");
+            clientThreadPool.shutdown();
+
+            try {
+                if (!clientThreadPool.awaitTermination(60, TimeUnit.SECONDS)) {
+                    System.out.println("Thread pool didn't terminate in time, forcing shutdown...");
+                    clientThreadPool.shutdownNow();
+
+                    if (!clientThreadPool.awaitTermination(10, TimeUnit.SECONDS)) {
+                        System.err.println("Thread pool did not terminate!");
+                    }
+                }
+                System.out.println("Thread pool shut down successfully");
+            } catch (InterruptedException e) {
+                System.err.println("Shutdown interrupted, forcing...");
+                clientThreadPool.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // Close server socket
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            System.err.println("Error closing server socket: " + e.getMessage());
+        }
+
+        System.out.println("Server shutdown complete.");
     }
 }

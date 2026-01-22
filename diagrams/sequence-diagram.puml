@@ -5,7 +5,7 @@ skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam linetype ortho
 
-actor "User 1" as User1
+actor "User 1 (Alice)" as User1
 participant "ChatClient 1" as Client1
 participant "ServerListener 1" as Listener1
 participant ChatServer
@@ -14,9 +14,9 @@ participant DatabaseManager
 participant "ClientHandler 2" as Handler2
 participant "ServerListener 2" as Listener2
 participant "ChatClient 2" as Client2
-actor "User 2" as User2
+actor "User 2 (Bob)" as User2
 
-== Connection Phase ==
+== New User Registration (Alice) ==
 User1 -> Client1: Start application
 Client1 -> Client1: Load SSL truststore
 Client1 -> ChatServer: **SSL Handshake**
@@ -30,14 +30,66 @@ activate Handler1
 
 Client1 -> User1: Prompt for username
 User1 -> Client1: Enter "Alice"
-Client1 -> Handler1: Send "Alice" (encrypted)
-Handler1 -> Handler1: Register username
+Client1 -> Handler1: Send "CHECK_USER:Alice" (encrypted)
+Handler1 -> DatabaseManager: userExists("Alice")
+DatabaseManager -> Handler1: false (new user)
+Handler1 -> Client1: "USER_NEW" (encrypted)
+Client1 -> User1: Prompt for password
+User1 -> Client1: Enter password "secret123"
+Client1 -> User1: Prompt to confirm password
+User1 -> Client1: Confirm password "secret123"
+Client1 -> Handler1: Send "REGISTER_PASSWORD:secret123" (encrypted)
+Handler1 -> DatabaseManager: registerUser("Alice", "secret123")
+DatabaseManager -> DatabaseManager: Hash password with SHA-256
+note right: Password stored as:\nef92b778bafe771e8924...
+DatabaseManager -> Handler1: true (registered)
+Client1 -> Handler1: Send final "Alice" (encrypted)
+Handler1 -> ChatServer: addClient(this)
+Handler1 -> Handler1: Set username = "Alice"
+Handler1 -> DatabaseManager: getAllMessages("Alice")
+DatabaseManager -> Handler1: Return message history (empty)
+Handler1 -> Client1: Send message history (encrypted)
 Handler1 -> Client1: "Welcome, Alice!" (encrypted)
 Handler1 -> ChatServer: broadcast("Alice joined")
 
 Client1 -> Listener1: Start listener thread
 activate Listener1
 
+== Returning User Authentication ==
+note over User1, Handler1: Scenario: Alice disconnects and reconnects
+User1 -> Client1: Restart application
+Client1 -> Client1: Load SSL truststore
+Client1 -> ChatServer: **SSL Handshake**
+ChatServer -> Client1: SSL handshake complete
+ChatServer -> Handler1: Create new ClientHandler
+activate Handler1
+
+Client1 -> User1: Prompt for username
+User1 -> Client1: Enter "Alice" (existing user)
+Client1 -> Handler1: Send "CHECK_USER:Alice" (encrypted)
+Handler1 -> DatabaseManager: userExists("Alice")
+DatabaseManager -> Handler1: true (existing user)
+Handler1 -> Client1: "USER_EXISTS" (encrypted)
+Client1 -> User1: Prompt for password
+User1 -> Client1: Enter password "secret123"
+Client1 -> Handler1: Send "VERIFY_PASSWORD:secret123" (encrypted)
+Handler1 -> DatabaseManager: verifyPassword("Alice", "secret123")
+DatabaseManager -> DatabaseManager: Hash input password
+DatabaseManager -> DatabaseManager: Compare with stored hash
+DatabaseManager -> Handler1: true (password correct)
+Handler1 -> Client1: "PASSWORD_CORRECT" (encrypted)
+Client1 -> Handler1: Send final "Alice" (encrypted)
+Handler1 -> ChatServer: addClient(this)
+Handler1 -> DatabaseManager: getAllMessages("Alice")
+note right: Load message history\nfiltered for this user
+DatabaseManager -> Handler1: Return message history
+Handler1 -> Client1: Send message history (encrypted)
+Handler1 -> Client1: "Welcome back, Alice!" (encrypted)
+Handler1 -> ChatServer: broadcast("Alice joined")
+
+deactivate Handler1
+
+== New User Registration (Bob) ==
 User2 -> Client2: Start application
 Client2 -> Client2: Load SSL truststore
 Client2 -> ChatServer: **SSL Handshake**
@@ -50,9 +102,22 @@ activate Handler2
 
 Client2 -> User2: Prompt for username
 User2 -> Client2: Enter "Bob"
-Client2 -> Handler2: Send "Bob" (encrypted)
-Handler2 -> Handler2: Register username
-Handler2 -> DatabaseManager: getAllMessages()
+Client2 -> Handler2: Send "CHECK_USER:Bob" (encrypted)
+Handler2 -> DatabaseManager: userExists("Bob")
+DatabaseManager -> Handler2: false (new user)
+Handler2 -> Client2: "USER_NEW" (encrypted)
+Client2 -> User2: Prompt for password
+User2 -> Client2: Enter password "pass456"
+Client2 -> User2: Prompt to confirm password
+User2 -> Client2: Confirm password "pass456"
+Client2 -> Handler2: Send "REGISTER_PASSWORD:pass456" (encrypted)
+Handler2 -> DatabaseManager: registerUser("Bob", "pass456")
+DatabaseManager -> DatabaseManager: Hash password with SHA-256
+DatabaseManager -> Handler2: true (registered)
+Client2 -> Handler2: Send final "Bob" (encrypted)
+Handler2 -> ChatServer: addClient(this)
+Handler2 -> Handler2: Set username = "Bob"
+Handler2 -> DatabaseManager: getAllMessages("Bob")
 DatabaseManager -> Handler2: Return message history
 Handler2 -> Client2: Send message history (encrypted)
 Handler2 -> Client2: "Welcome, Bob!" (encrypted)
@@ -67,16 +132,22 @@ activate Listener2
 User1 -> Client1: Type "Hello everyone"
 Client1 -> Handler1: Send "Hello everyone" (encrypted)
 note right: All messages encrypted via SSL
-Handler1 -> DatabaseManager: insertMessage("Alice", "Hello everyone", timestamp)
-DatabaseManager -> DatabaseManager: Store in chat.db
-Handler1 -> Handler2: broadcast("Alice: Hello everyone")
+Handler1 -> DatabaseManager: insertMessage(sender, sender_ip, "ALL", "---", message, timestamp)
+DatabaseManager -> DatabaseManager: Store in chat.db with IP tracking
+Handler1 -> ChatServer: broadcast() [thread-safe]
+ChatServer -> ChatServer: Create clients copy (synchronized)
+Handler1 -> Handler2: Send message to all except sender
 Handler2 -> Listener2: Send message (encrypted)
 Listener2 -> User2: Display "Alice: Hello everyone"
 
 == Private Message ==
 User2 -> Client2: Type "/w Alice Hi there!"
 Client2 -> Handler2: Send "/w Alice Hi there!" (encrypted)
-Handler2 -> Handler1: sendPrivateMessage()
+Handler2 -> ChatServer: sendPrivateMessage() [thread-safe]
+ChatServer -> ChatServer: Create clients copy (synchronized)
+ChatServer -> DatabaseManager: insertMessage(sender, sender_ip, recipient, recipient_ip, message, timestamp)
+DatabaseManager -> DatabaseManager: Log private message with IPs
+Handler2 -> Handler1: Forward private message
 Handler1 -> Listener1: "Bob (Whisper): Hi there!" (encrypted)
 Listener1 -> User1: Display whisper
 Handler2 -> Listener2: "You whispered to Alice: Hi there!" (encrypted)
@@ -94,11 +165,14 @@ User1 -> Client1: Click "File" button
 Client1 -> Client1: Open file chooser
 User1 -> Client1: Select file "document.pdf"
 Client1 -> Handler1: Send msgType_FILE + filename + size + data (encrypted)
-note right: File sent in 8KB chunks\nBackground thread prevents UI freeze
+note right: File sent in 8KB chunks\nBackground thread prevents UI freeze\nOverflow protection for large files
 Handler1 -> Handler1: Validate file size (<50MB)
-Handler1 -> DatabaseManager: insertMessage("Alice", "[File: document.pdf]", timestamp)
+Handler1 -> Handler1: Read file data in chunks (no overflow)
+Handler1 -> DatabaseManager: insertMessage(sender, sender_ip, "ALL", "---", "[File: document.pdf]", timestamp)
 DatabaseManager -> DatabaseManager: Store file reference in chat.db
-Handler1 -> Handler2: broadcastFile(filename, data)
+Handler1 -> ChatServer: broadcastFile() [thread-safe]
+ChatServer -> ChatServer: Create clients copy (synchronized)
+Handler1 -> Handler2: Send file to all except sender
 Handler2 -> Listener2: Send msgType_FILE + filename + size + data (encrypted)
 Listener2 -> User2: Open save dialog
 User2 -> Client2: Choose save location

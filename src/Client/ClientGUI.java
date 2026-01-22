@@ -7,7 +7,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
@@ -42,6 +42,9 @@ import javafx.stage.Stage;
  * Key features:
  * <ul>
  * <li>SSL/TLS encrypted connection to the server</li>
+ * <li>Password authentication with SHA-256 hashed passwords</li>
+ * <li>User registration for new users with password confirmation</li>
+ * <li>Returning user login with password verification</li>
  * <li>User-friendly login dialog for username entry</li>
  * <li>Real-time message display with timestamps</li>
  * <li>Text input field with send button</li>
@@ -54,7 +57,7 @@ import javafx.stage.Stage;
  * </ul>
  * 
  * @author ChatSystem Team
- * @version 2.0
+ * @version 2.2
  * @see ChatClient
  * @see ServerListener
  */
@@ -109,13 +112,14 @@ public class ClientGUI extends Application {
         TextInputDialog userNameInput = new TextInputDialog();
         userNameInput.setTitle("Login");
         userNameInput.setHeaderText("Enter your username");
-        Optional<String> result = userNameInput.showAndWait();
+        Optional<String> usernameResult = userNameInput.showAndWait();
 
-        if (!result.isPresent()) {
+        if (!usernameResult.isPresent()) {
             Platform.exit();
+            return;
         }
 
-        username = result.get();
+        username = usernameResult.get();
 
         try {
             System.setProperty("javax.net.ssl.trustStore", "keystore.jks");
@@ -134,11 +138,110 @@ public class ClientGUI extends Application {
             // Send the handshake username immediately
             synchronized (output) {
                 output.writeByte(msgType_TEXT);
+                output.writeUTF("CHECK_USER:" + username);
+                output.flush();
+            }
+
+            // Read response (msgType + message)
+            byte responseType = input.readByte();
+            String response = input.readUTF();
+
+            String password = null;
+
+            if (response.equals("USER_EXISTS")) {
+
+                TextInputDialog passwordInput = new TextInputDialog();
+                passwordInput.setTitle("Login");
+                passwordInput.setHeaderText("Welcome back, " + username + "!");
+                passwordInput.setContentText("Enter your password:");
+
+                // Makes the password field show in dots
+                passwordInput.getEditor().setPromptText("Password");
+
+                Optional<String> passwordResult = passwordInput.showAndWait();
+
+                if (!passwordResult.isPresent()) {
+                    socket.close();
+                    Platform.exit();
+                    return;
+                }
+
+                password = passwordResult.get();
+
+                // Send password for verification
+                synchronized (output) {
+                    output.writeByte(msgType_TEXT);
+                    output.writeUTF("VERIFY_PASSWORD:" + password);
+                    output.flush();
+                }
+
+                // Check if password is correct
+                responseType = input.readByte();
+                response = input.readUTF();
+
+                if (response.equals("PASSWORD_INCORRECT")) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Login Failed");
+                    alert.setHeaderText("Incorrect Password");
+                    alert.setContentText("The password you entered is incorrect.");
+                    alert.showAndWait();
+                    socket.close();
+                    Platform.exit();
+                    return;
+                }
+            } else if (response.equals("USER_NEW")) {
+                TextInputDialog createPasswordInput = new TextInputDialog();
+                createPasswordInput.setTitle("Create Account");
+                createPasswordInput.setHeaderText("Welcome, " + username + "!");
+                createPasswordInput.setContentText("Create a password for your account:");
+                createPasswordInput.getEditor().setPromptText("Password");
+
+                Optional<String> passwordResult = createPasswordInput.showAndWait();
+
+                if (!passwordResult.isPresent()) {
+                    socket.close();
+                    Platform.exit();
+                    return;
+                }
+
+                password = passwordResult.get();
+
+                // Confirm password
+                TextInputDialog confirmPasswordInput = new TextInputDialog();
+                confirmPasswordInput.setTitle("Create Account");
+                confirmPasswordInput.setHeaderText("Confirm Password");
+                confirmPasswordInput.setContentText("Re-enter your password:");
+                confirmPasswordInput.getEditor().setPromptText("Password");
+
+                Optional<String> confirmResult = confirmPasswordInput.showAndWait();
+
+                if (!confirmResult.isPresent() || !confirmResult.get().equals(password)) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Password Mismatch");
+                    alert.setContentText("Passwords do not match. Please try again.");
+                    alert.showAndWait();
+                    socket.close();
+                    Platform.exit();
+                    return;
+                }
+
+                synchronized (output) {
+                    output.writeByte(msgType_TEXT);
+                    output.writeUTF("REGISTER_PASSWORD:" + password);
+                    output.flush();
+                }
+            }
+
+            // Final handshake - send username again (now authenticated)
+            synchronized (output) {
+                output.writeByte(msgType_TEXT);
                 output.writeUTF(username);
                 output.flush();
             }
 
-        } catch (Exception e) {
+        } catch (
+
+        Exception e) {
             // If connection fails, show error and stop
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Connection Error");
@@ -152,9 +255,11 @@ public class ClientGUI extends Application {
         root.setStyle("-fx-background-color: #2b2b2b;");
 
         // Header with server info
-        Label headerLabel = new Label("Secure Chat - Connected to " + SERVER_HOST + ":" + PORT);
+        Label headerLabel = new Label("Secure Chat - Connected to " + SERVER_HOST + ":"
+                + PORT);
         headerLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #ffffff; -fx-padding: 10px;");
-        VBox header = new VBox(headerLabel);
+        VBox header = new VBox(
+                headerLabel);
         header.setStyle("-fx-background-color: #1e1e1e;");
         header.setAlignment(Pos.CENTER);
         root.setTop(header);
@@ -163,89 +268,51 @@ public class ClientGUI extends Application {
         TextArea chatArea = new TextArea();
         chatArea.setEditable(false);
         chatArea.setWrapText(true);
-        chatArea.setStyle(
-                "-fx-control-inner-background: #1e1e1e; " +
-                        "-fx-text-fill: #e0e0e0; " +
-                        "-fx-font-family: 'Consolas', 'Monaco', monospace; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-border-color: #404040; " +
-                        "-fx-border-width: 1px;");
+        chatArea.setStyle("-fx-control-inner-background: #1e1e1e; " + "-fx-text-fill: #e0e0e0; "
+                + "-fx-font-family: 'Consolas', 'Monaco', monospace; " + "-fx-font-size: 13px; "
+                + "-fx-border-color: #404040; " + "-fx-border-width: 1px;");
         root.setCenter(chatArea);
 
         // Input area
         TextField inputField = new TextField();
         inputField.setPromptText("Type your message here... (Commands: /list, /w <user> <msg>, bye)");
-        inputField.setStyle(
-                "-fx-background-color: #1e1e1e; " +
-                        "-fx-text-fill: #e0e0e0; " +
-                        "-fx-prompt-text-fill: #808080; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-border-color: #404040; " +
-                        "-fx-border-width: 1px 0 1px 1px; " +
-                        "-fx-padding: 8px;");
+        inputField.setStyle("-fx-background-color: #1e1e1e; " + "-fx-text-fill: #e0e0e0; "
+                + "-fx-prompt-text-fill: #808080; " + "-fx-font-size: 13px; " + "-fx-border-color: #404040; "
+                + "-fx-border-width: 1px 0 1px 1px; " + "-fx-padding: 8px;");
         HBox.setHgrow(inputField, Priority.ALWAYS);
 
-        Button sendButton = new Button("Send");
-        sendButton.setStyle(
-                "-fx-background-color: #0d7377; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-padding: 8px 20px; " +
-                        "-fx-border-color: #404040; " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-cursor: hand;");
-        sendButton.setOnMouseEntered(e -> sendButton.setStyle(
-                "-fx-background-color: #14ffec; " +
-                        "-fx-text-fill: #1e1e1e; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-padding: 8px 20px; " +
-                        "-fx-border-color: #14ffec; " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-cursor: hand;"));
-        sendButton.setOnMouseExited(e -> sendButton.setStyle(
-                "-fx-background-color: #0d7377; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-padding: 8px 20px; " +
-                        "-fx-border-color: #404040; " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-cursor: hand;"));
+        Button sendButton = new Button(
+                "Send");
+        sendButton.setStyle("-fx-background-color: #0d7377; " + "-fx-text-fill: white; " + "-fx-font-weight: bold; "
+                + "-fx-font-size: 13px; " + "-fx-padding: 8px 20px; " + "-fx-border-color: #404040; "
+                + "-fx-border-width: 1px; " + "-fx-cursor: hand;");
+        sendButton.setOnMouseEntered(
+                e -> sendButton.setStyle("-fx-background-color: #14ffec; " + "-fx-text-fill: #1e1e1e; "
+                        + "-fx-font-weight: bold; " + "-fx-font-size: 13px; " + "-fx-padding: 8px 20px; "
+                        + "-fx-border-color: #14ffec; " + "-fx-border-width: 1px; " + "-fx-cursor: hand;"));
+        sendButton
+                .setOnMouseExited(e -> sendButton.setStyle("-fx-background-color: #0d7377; " + "-fx-text-fill: white; "
+                        + "-fx-font-weight: bold; " + "-fx-font-size: 13px; " + "-fx-padding: 8px 20px; "
+                        + "-fx-border-color: #404040; " + "-fx-border-width: 1px; " + "-fx-cursor: hand;"));
 
         inputField.setOnAction(event -> sendButton.fire());
 
-        Button fileButton = new Button("File");
-        fileButton.setStyle(
-                "-fx-background-color: #0d7377; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-padding: 8px 20px; " +
-                        "-fx-border-color: #404040; " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-cursor: hand;");
-        fileButton.setOnMouseEntered(e -> fileButton.setStyle(
-                "-fx-background-color: #14ffec; " +
-                        "-fx-text-fill: #1e1e1e; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-padding: 8px 20px; " +
-                        "-fx-border-color: #14ffec; " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-cursor: hand;"));
-        fileButton.setOnMouseExited(e -> fileButton.setStyle(
-                "-fx-background-color: #0d7377; " +
-                        "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 13px; " +
-                        "-fx-padding: 8px 20px; " +
-                        "-fx-border-color: #404040; " +
-                        "-fx-border-width: 1px; " +
-                        "-fx-cursor: hand;"));
+        Button fileButton = new Button(
+                "File");
+        fileButton.setStyle("-fx-background-color: #0d7377; " + "-fx-text-fill: white; " + "-fx-font-weight: bold; "
+                + "-fx-font-size: 13px; " + "-fx-padding: 8px 20px; " + "-fx-border-color: #404040; "
+                + "-fx-border-width: 1px; " + "-fx-cursor: hand;");
+        fileButton.setOnMouseEntered(
+                e -> fileButton.setStyle("-fx-background-color: #14ffec; " + "-fx-text-fill: #1e1e1e; "
+                        + "-fx-font-weight: bold; " + "-fx-font-size: 13px; " + "-fx-padding: 8px 20px; "
+                        + "-fx-border-color: #14ffec; " + "-fx-border-width: 1px; " + "-fx-cursor: hand;"));
+        fileButton
+                .setOnMouseExited(e -> fileButton.setStyle("-fx-background-color: #0d7377; " + "-fx-text-fill: white; "
+                        + "-fx-font-weight: bold; " + "-fx-font-size: 13px; " + "-fx-padding: 8px 20px; "
+                        + "-fx-border-color: #404040; " + "-fx-border-width: 1px; " + "-fx-cursor: hand;"));
 
-        HBox bottomBar = new HBox(inputField, sendButton, fileButton);
+        HBox bottomBar = new HBox(inputField, sendButton,
+                fileButton);
         bottomBar.setStyle("-fx-background-color: #2b2b2b; -fx-padding: 10px;");
         root.setBottom(bottomBar);
 
@@ -260,14 +327,14 @@ public class ClientGUI extends Application {
                         output.writeByte(msgType_TEXT);
                         output.writeUTF(text);
                         output.flush();
+
                     }
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
-                if (text.startsWith("/w")) {
-
-                } else {
-                    String timestamp = LocalTime.now().format(TIME_FORMATTER);
+                // Don't echo /w, bye, or /list commands locally
+                if (!text.startsWith("/w") && !text.equals("bye") && !text.equals("/list")) {
+                    String timestamp = LocalDateTime.now().format(TIME_FORMATTER);
                     chatArea.appendText("[" + timestamp + "] ");
                     chatArea.appendText("Me: " + text + "\n");
                 }
@@ -373,7 +440,8 @@ public class ClientGUI extends Application {
 
         }).start();
 
-        Scene scene = new Scene(root, 800, 500);
+        Scene scene = new Scene(root, 800,
+                500);
         primaryStage.setScene(scene);
         primaryStage.setTitle("Secure Chat - " + username);
         primaryStage.setOnCloseRequest(e -> {
@@ -400,22 +468,14 @@ public class ClientGUI extends Application {
         primaryStage.show();
 
         // Welcome message
-        chatArea.appendText("╔════════════════════════════════════════════════════════════════╗\n");
-        String welcomeText = "Welcome to Secure Chat, " + username + "!";
-        int boxWidth = 61; // Width between the two ║ characters (59 + 2 for the ║)
-        int contentWidth = boxWidth - 2; // Subtract 2 for the ║ on each side
-        int textLength = welcomeText.length();
-        int totalPadding = contentWidth - textLength;
-        int leftPad = totalPadding / 2;
-        int rightPad = totalPadding - leftPad; // This ensures any odd number is handled correctly
-        chatArea.appendText(
-                "║" + " ".repeat(Math.max(0, leftPad)) + welcomeText + " ".repeat(Math.max(0, rightPad)) + "║\n");
-        chatArea.appendText("╠════════════════════════════════════════════════════════════════╣\n");
-        chatArea.appendText("║  Commands:                                                     ║\n");
-        chatArea.appendText("║    /list          - View all connected users                   ║\n");
-        chatArea.appendText("║    /w <user> <msg> - Send private message (whisper)            ║\n");
-        chatArea.appendText("║    bye            - Disconnect from chat                       ║\n");
-        chatArea.appendText("╚════════════════════════════════════════════════════════════════╝\n\n");
+        chatArea.appendText("═══════════════════════════════════════════════════════════════════════\n");
+        chatArea.appendText("  Welcome to Secure Chat, " + username + "!\n");
+        chatArea.appendText("═══════════════════════════════════════════════════════════════════════\n");
+        chatArea.appendText("  Commands:\n");
+        chatArea.appendText("    • /list              View all connected users\n");
+        chatArea.appendText("    • /w <user> <msg>    Send private message (whisper)\n");
+        chatArea.appendText("    • bye                Disconnect from chat\n");
+        chatArea.appendText("═══════════════════════════════════════════════════════════════════════\n\n");
     }
 
     /**

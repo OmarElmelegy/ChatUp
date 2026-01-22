@@ -1,1 +1,1 @@
-typeSearchIndex = [{"l":"All Classes","url":"allclasses-index.html"},{"p":"<Unnamed>","l":"ChatClient"},{"p":"<Unnamed>","l":"ChatServer"},{"p":"<Unnamed>","l":"ClientHandler"},{"p":"<Unnamed>","l":"ServerListener"}]
+typeSearchIndex = [{"l":"All Classes","url":"allclasses-index.html"},{"p":"Client","l":"ChatClient"},{"p":"Server","l":"ChatServer"},{"p":"Server","l":"ClientHandler"},{"p":"Server","l":"DatabaseManager"},{"p":"Client","l":"ServerListener"}]

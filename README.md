@@ -5,9 +5,12 @@ A Java-based client-server chat system that supports multiple concurrent users w
 ## 📋 Features
 
 - **SSL/TLS Security**: Encrypted communication between clients and server
+- **Password Authentication**: Secure user login with SHA-256 hashed passwords stored in database
+- **User Registration**: New users create password-protected accounts; returning users authenticate with password
 - **Multi-Client Support**: Multiple users can connect simultaneously
 - **Real-Time Messaging**: Instant message broadcasting to all connected users
 - **Message Persistence**: SQLite database stores chat history for new users joining
+- **Username Validation**: Prevents duplicate usernames with atomic checking and registration
 - **File Transfer**: Send and receive files securely between users with a dedicated File button
 - **Binary Protocol**: Efficient message and file transmission using DataInputStream/DataOutputStream
 - **Private Messaging**: Whisper functionality for one-to-one communication using `/w <username> <message>`
@@ -16,13 +19,15 @@ A Java-based client-server chat system that supports multiple concurrent users w
 - **Username System**: Users register with unique usernames upon connection
 - **Join/Leave Notifications**: Server broadcasts when users enter or exit the chat
 - **Dual Client Interfaces**: Both command-line (ChatClient) and GUI (ClientGUI) options
-- **Timestamps**: All messages display with precise timestamps
+- **Timestamps**: All messages display with precise timestamps in yyyy-MM-dd HH:mm:ss format
 - **Modern JavaFX GUI**: Dark-themed graphical interface with styled components
 - **Silent Close**: GUI closes gracefully without error dialogs when user clicks X button
 - **Graceful Shutdown**: Server properly closes all client connections when shutting down
 - **Configurable Connection**: Clients can connect to custom hosts and ports
 - **Auto-Reconnect Notifications**: Clients are notified when server closes unexpectedly
-- **Thread-Safe Operations**: Synchronized output streams prevent data corruption
+- **Thread-Safe Operations**: Synchronized client list operations prevent race conditions
+- **Enhanced Error Handling**: Proper resource cleanup and overflow protection for large files
+- **IP Address Tracking**: Database logs IP addresses for security and audit purposes
 
 ## 🏗️ Architecture
 
@@ -211,8 +216,11 @@ System.setProperty("javax.net.ssl.trustStorePassword", "password123");
 - **Port**: 5001 (default, configurable)
 - **Protocol**: TCP/IP using Java Sockets with SSL/TLS encryption
 - **Message Protocol**: Binary protocol using DataInputStream/DataOutputStream with message type byte (1=TEXT, 2=FILE)
-- **Database**: SQLite (chat.db) for persistent message storage
+- **Database**: SQLite (chat.db) with two tables:
+  - `users` table: username, password_hash (SHA-256), created_at
+  - `messages` table: sender, sender_ip, recipient, recipient_ip, content, timestamp
 - **Security**: SSL/TLS using SSLSocket and SSLServerSocket
+- **Password Hashing**: SHA-256 one-way encryption for secure password storage
 - **Threading Model**: One thread per client connection + listener thread on CLI client side
 - **GUI Framework**: JavaFX 23.0.1 for graphical client with custom dark theme
 - **Concurrency**: Thread-safe client list management with proper synchronization
@@ -258,11 +266,28 @@ ChatApp-Java/
 
 ## 🐛 Known Issues
 
-- No username uniqueness validation (duplicate usernames are allowed)
 - SSL keystore password is hardcoded (should use environment variables in production)
 - Private messages are not stored in the database
+- File transfers are not saved in database (only references)
 
 ## ✨ Recent Updates
+
+### Version 2.2 (January 2026)
+- ✅ **Password Authentication**: SHA-256 hashed password system for user accounts
+- ✅ **User Registration**: New users create secure password-protected accounts
+- ✅ **Returning User Login**: Existing users authenticate with saved passwords
+- ✅ **Users Database Table**: Persistent user account storage with unique username constraint
+- ✅ **Password Verification**: Secure password matching with hashed comparison
+- ✅ **Authentication Protocol**: Multi-step handshake (CHECK_USER, VERIFY_PASSWORD, REGISTER_PASSWORD)
+
+### Version 2.1 (January 2026)
+- ✅ **Username Validation**: Atomic username checking prevents duplicates
+- ✅ **Thread Safety**: Synchronized client list operations prevent race conditions
+- ✅ **Enhanced Error Handling**: Proper resource cleanup and connection management
+- ✅ **File Size Protection**: Fixed overflow issues for large file transfers
+- ✅ **IP Address Tracking**: Database now logs sender and recipient IP addresses
+- ✅ **Command Filtering**: System commands no longer echo locally in GUI
+- ✅ **Improved UI**: Cleaner welcome message with better formatting
 
 ### Version 2.0 (January 2026)
 - ✅ **Message Persistence**: SQLite database stores chat history for new users
@@ -286,7 +311,7 @@ ChatApp-Java/
 
 ---
 
-**Version**: 2.0  
-**Last Updated**: January 20, 2026
+**Version**: 2.2  
+**Last Updated**: January 22, 2026
 
-**Key Features**: SSL/TLS Encryption • File Transfer • Binary Protocol • Message Persistence • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown
+**Key Features**: SSL/TLS Encryption • Password Authentication • SHA-256 Hashing • File Transfer • Binary Protocol • Message Persistence • User Registration • Thread-Safe Operations • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown
