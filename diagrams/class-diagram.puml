@@ -21,6 +21,9 @@ package "Server Side" #DDFFDD {
         {static} - PORT : int = 5001
         {static} - clients : List<ClientHandler>
         {static} - serverSocket : SSLServerSocket
+        {static} - clientThreadPool : ExecutorService
+        {static} - MAX_CLIENTS : int = 50
+        {static} - running : boolean
         --
         {static} + main(String[] args) : void
         {static} + addClient(ClientHandler) : void [synchronized]
@@ -31,6 +34,7 @@ package "Server Side" #DDFFDD {
         {static} + sendPrivateMessage(String, String, String, ClientHandler) : void [thread-safe]
         {static} + getClients() : List<ClientHandler>
         {static} + shutdown(boolean) : void
+        - shutdownInstance() : void
     }
 
     class ClientHandler {
@@ -69,6 +73,11 @@ package "Server Side" #DDFFDD {
       client connections and
       manages message routing
       
+      Thread Pool Architecture:
+      - Fixed ExecutorService (50 threads)
+      - Scalable client handling
+      - Graceful shutdown with cleanup
+      
       Thread-safe operations:
       - Synchronized client list access
       - Atomic username validation
@@ -77,7 +86,8 @@ package "Server Side" #DDFFDD {
 
     note right of ClientHandler
       Handles individual client
-      connections in separate threads
+      connections via thread pool
+      (ExecutorService workers)
       
       Features:
       - Password authentication on login
@@ -108,10 +118,11 @@ package "Server Side" #DDFFDD {
       for persistent message storage
       
       Features:
-      - Stores all public messages
-      - Tracks private messages
-      - Logs IP addresses
-      - Provides history for new users
+      - Stores all messages (public & private)
+      - Private messages use recipient username
+      - Public messages use "ALL" as recipient
+      - Logs both sender and recipient IPs
+      - Provides filtered history for users
       - Uses chat.db file
       
       User Management:
@@ -121,9 +132,9 @@ package "Server Side" #DDFFDD {
       - Unique username enforcement
       
       Schema:
-      - messages table: sender, sender_ip,
+      - messages: sender, sender_ip,
         recipient, recipient_ip, content, timestamp
-      - users table: username, password_hash,
+      - users: username, password_hash,
         created_at
     end note
 }

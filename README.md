@@ -4,30 +4,27 @@ A Java-based client-server chat system that supports multiple concurrent users w
 
 ## 📋 Features
 
-- **SSL/TLS Security**: Encrypted communication between clients and server
-- **Password Authentication**: Secure user login with SHA-256 hashed passwords stored in database
-- **User Registration**: New users create password-protected accounts; returning users authenticate with password
-- **Multi-Client Support**: Multiple users can connect simultaneously
-- **Real-Time Messaging**: Instant message broadcasting to all connected users
-- **Message Persistence**: SQLite database stores chat history for new users joining
-- **Username Validation**: Prevents duplicate usernames with atomic checking and registration
-- **File Transfer**: Send and receive files securely between users with a dedicated File button
-- **Binary Protocol**: Efficient message and file transmission using DataInputStream/DataOutputStream
-- **Private Messaging**: Whisper functionality for one-to-one communication using `/w <username> <message>`
-- **User List**: View all currently connected users with `/list` command
-- **Thread-Based Architecture**: Each client connection runs in its own thread for concurrent handling
-- **Username System**: Users register with unique usernames upon connection
-- **Join/Leave Notifications**: Server broadcasts when users enter or exit the chat
-- **Dual Client Interfaces**: Both command-line (ChatClient) and GUI (ClientGUI) options
-- **Timestamps**: All messages display with precise timestamps in yyyy-MM-dd HH:mm:ss format
-- **Modern JavaFX GUI**: Dark-themed graphical interface with styled components
-- **Silent Close**: GUI closes gracefully without error dialogs when user clicks X button
-- **Graceful Shutdown**: Server properly closes all client connections when shutting down
-- **Configurable Connection**: Clients can connect to custom hosts and ports
-- **Auto-Reconnect Notifications**: Clients are notified when server closes unexpectedly
-- **Thread-Safe Operations**: Synchronized client list operations prevent race conditions
-- **Enhanced Error Handling**: Proper resource cleanup and overflow protection for large files
-- **IP Address Tracking**: Database logs IP addresses for security and audit purposes
+### 🔐 Security & Authentication
+- SSL/TLS encrypted communication with password-protected user accounts (SHA-256 hashing)
+- New user registration and returning user authentication via SQLite database
+- IP address tracking for security auditing
+
+### 💬 Messaging
+- Real-time public broadcasting and private messaging (`/w <username> <message>`)
+- Complete message persistence (all public and private messages stored in database)
+- File transfer support (up to 50MB) with binary protocol
+- Timestamped messages (yyyy-MM-dd HH:mm:ss format)
+
+### ⚙️ Architecture & Performance
+- Thread pool architecture (ExecutorService with 50 worker threads) for scalable client handling
+- Thread-safe operations with synchronized client list management
+- Supports up to 50 concurrent client connections
+- Graceful server shutdown with client notifications
+
+### 🖥️ User Interface
+- Dual interfaces: Modern JavaFX GUI (dark theme) and command-line client
+- User list display (`/list` command) and join/leave notifications
+- Configurable connection settings (custom host and port)
 
 ## 🏗️ Architecture
 
@@ -38,8 +35,8 @@ The diagram below shows the clear separation between client-side and server-side
 ![ChatSystem Class Diagram](/diagrams/ChatSystem%20Class%20Diagram.png)
 
 **Server Side (Green)**:
-- `ChatServer`: Main server that accepts connections and routes messages
-- `ClientHandler`: Manages individual client connections in separate threads
+- `ChatServer`: Main server that accepts connections, manages thread pool, and routes messages
+- `ClientHandler`: Manages individual client connections via thread pool
 
 **Client Side (Blue)**:
 - `ChatClient`: User-facing application that sends/receives messages
@@ -69,9 +66,9 @@ Users can send files securely using the File button, with recipient receiving a 
 ### Components
 
 **Server Side:**
-- **ChatServer**: Main server application that accepts SSL client connections and manages message routing
-- **ClientHandler**: Handles individual client connections in separate threads, processes commands and messages
-- **DatabaseManager**: Manages SQLite database for persistent message storage and retrieval
+- **ChatServer**: Main server application that accepts SSL client connections, manages a fixed thread pool (50 threads), and routes messages
+- **ClientHandler**: Handles individual client connections via thread pool, processes commands and messages
+- **DatabaseManager**: Manages SQLite database for persistent storage of messages (public and private), users, and authentication
 
 **Client Side:**
 - **ChatClient**: Command-line client application that connects to the server and sends user input
@@ -80,16 +77,12 @@ Users can send files securely using the File button, with recipient receiving a 
 
 ### UI Design
 
-The JavaFX GUI client features:
-- **Dark Theme**: Modern dark color scheme (#1e1e1e background, #0d7377 accent colors)
-- **Styled Components**: Custom-styled text areas, input fields, and buttons
-- **Header Bar**: Shows connection information (server host and port)
-- **Message Display**: Monospace font for clear message readability with timestamps
-- **Interactive Buttons**: Send and File buttons with hover effects for better user experience
-- **File Transfer UI**: File chooser dialog for sending files, save dialog for receiving files
-- **Welcome Screen**: Displays available commands and usage instructions
-- **Responsive Layout**: Automatically adjusts to window resizing
-- **Silent Close**: No error dialogs when user intentionally closes the window
+The JavaFX GUI features a modern dark theme with:
+- Custom-styled components (text areas, input fields, buttons with hover effects)
+- Connection header bar and monospace message display with timestamps
+- File transfer dialogs (chooser for sending, save for receiving)
+- Welcome screen with command instructions
+- Responsive layout and silent close (no error dialogs on window close)
 
 ## 🚀 Getting Started
 
@@ -214,21 +207,15 @@ System.setProperty("javax.net.ssl.trustStorePassword", "password123");
 ## 🛠️ Technical Details
 
 - **Port**: 5001 (default, configurable)
-- **Protocol**: TCP/IP using Java Sockets with SSL/TLS encryption
-- **Message Protocol**: Binary protocol using DataInputStream/DataOutputStream with message type byte (1=TEXT, 2=FILE)
-- **Database**: SQLite (chat.db) with two tables:
-  - `users` table: username, password_hash (SHA-256), created_at
-  - `messages` table: sender, sender_ip, recipient, recipient_ip, content, timestamp
-- **Security**: SSL/TLS using SSLSocket and SSLServerSocket
-- **Password Hashing**: SHA-256 one-way encryption for secure password storage
-- **Threading Model**: One thread per client connection + listener thread on CLI client side
-- **GUI Framework**: JavaFX 23.0.1 for graphical client with custom dark theme
-- **Concurrency**: Thread-safe client list management with proper synchronization
-- **File Transfer**: Supports files up to 50MB with streaming upload/download
-- **Time Formatting**: yyyy-MM-dd HH:mm:ss format for message timestamps
-- **Shutdown Handling**: Graceful server shutdown with client notification via shutdown hooks
-- **UI Design**: Modern dark theme with custom-styled components and hover effects
-- **Error Handling**: Intentional close detection to prevent false error dialogs
+- **Protocol**: TCP/IP with SSL/TLS encryption using SSLSocket/SSLServerSocket
+- **Message Format**: Binary protocol (DataInputStream/DataOutputStream) with type byte: 1=TEXT, 2=FILE
+- **Database**: SQLite (chat.db)
+  - `users`: username, password_hash (SHA-256), created_at
+  - `messages`: sender, sender_ip, recipient ("ALL" or username), recipient_ip, content, timestamp
+- **Threading**: Fixed thread pool (ExecutorService, 50 workers) + CLI listener thread
+- **GUI**: JavaFX 23.0.1 with custom dark theme (#1e1e1e background, #0d7377 accents)
+- **File Transfer**: Up to 50MB with streaming upload/download
+- **Concurrency**: Thread-safe operations with synchronized client list management
 
 ## 📁 Project Structure
 
@@ -267,51 +254,42 @@ ChatApp-Java/
 ## 🐛 Known Issues
 
 - SSL keystore password is hardcoded (should use environment variables in production)
-- Private messages are not stored in the database
-- File transfers are not saved in database (only references)
+- File transfers are not logged in database (only file transfer notifications)
+- Thread pool size is fixed at 50 (could be made configurable via config file)
 
 ## ✨ Recent Updates
 
 ### Version 2.2 (January 2026)
-- ✅ **Password Authentication**: SHA-256 hashed password system for user accounts
-- ✅ **User Registration**: New users create secure password-protected accounts
-- ✅ **Returning User Login**: Existing users authenticate with saved passwords
-- ✅ **Users Database Table**: Persistent user account storage with unique username constraint
-- ✅ **Password Verification**: Secure password matching with hashed comparison
-- ✅ **Authentication Protocol**: Multi-step handshake (CHECK_USER, VERIFY_PASSWORD, REGISTER_PASSWORD)
+- ✅ Thread pool architecture with ExecutorService (50 worker threads)
+- ✅ Private message persistence in database with sender/recipient tracking
+- ✅ Password authentication system with SHA-256 hashing
+- ✅ User registration and login with database storage
+- ✅ Multi-step authentication protocol (CHECK_USER, VERIFY_PASSWORD, REGISTER_PASSWORD)
+- ✅ IP address tracking for all messages (public and private)
 
 ### Version 2.1 (January 2026)
-- ✅ **Username Validation**: Atomic username checking prevents duplicates
-- ✅ **Thread Safety**: Synchronized client list operations prevent race conditions
-- ✅ **Enhanced Error Handling**: Proper resource cleanup and connection management
-- ✅ **File Size Protection**: Fixed overflow issues for large file transfers
-- ✅ **IP Address Tracking**: Database now logs sender and recipient IP addresses
-- ✅ **Command Filtering**: System commands no longer echo locally in GUI
-- ✅ **Improved UI**: Cleaner welcome message with better formatting
+- ✅ Atomic username validation to prevent duplicates
+- ✅ Thread-safe client list operations with synchronization
+- ✅ Enhanced error handling and resource cleanup
+- ✅ File size protection for large transfers
+- ✅ Command filtering in GUI (no local echo for system commands)
 
 ### Version 2.0 (January 2026)
-- ✅ **Message Persistence**: SQLite database stores chat history for new users
-- ✅ **Thread Synchronization**: Fixed race conditions in output stream operations
-- ✅ **File Transfer**: Send and receive files securely between users
-- ✅ **Binary Protocol**: Implemented efficient DataInputStream/DataOutputStream protocol
-- ✅ **Silent Close**: Graceful window closure without error dialogs
-- ✅ **Enhanced UI**: Added File button with matching style and hover effects
-- ✅ **File Size Limit**: Server enforces 50MB file size limit for security
-- ✅ **Background File Transfer**: Non-blocking file uploads to prevent UI freezing
-- ✅ **Save Dialog**: Interactive file save dialog when receiving files
+- ✅ SQLite database for message persistence
+- ✅ Binary file transfer protocol (up to 50MB)
+- ✅ Silent window close without error dialogs
+- ✅ Background file transfers (non-blocking UI)
+- ✅ Interactive file save dialog
 
 ### Version 1.1 (January 2026)
-- ✅ **Enhanced UI**: Modern dark-themed GUI with styled components
-- ✅ **Graceful Shutdown**: Server properly notifies and closes all clients on shutdown
-- ✅ **Configurable Connection**: Support for custom server host and port via system properties
-- ✅ **Auto-Reconnect Handling**: Clients display alerts when server closes unexpectedly
-- ✅ **Improved Diagrams**: Class and sequence diagrams now use orthogonal (rectangular) lines
-- ✅ **Better Error Handling**: Enhanced connection error messages and user notifications
-- ✅ **Welcome Screen**: GUI displays command help on startup
+- ✅ Modern dark-themed JavaFX GUI
+- ✅ Graceful server shutdown with client notifications
+- ✅ Configurable connection settings
+- ✅ Auto-reconnect handling and improved error messages
 
 ---
 
 **Version**: 2.2  
-**Last Updated**: January 22, 2026
+**Last Updated**: January 23, 2026
 
-**Key Features**: SSL/TLS Encryption • Password Authentication • SHA-256 Hashing • File Transfer • Binary Protocol • Message Persistence • User Registration • Thread-Safe Operations • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown
+**Key Features**: SSL/TLS Encryption • Password Authentication • SHA-256 Hashing • File Transfer • Binary Protocol • Message Persistence (Public & Private) • User Registration • Thread Pool Architecture • Thread-Safe Operations • Modern Dark UI • Multi-Client Support • Private Messaging • Graceful Shutdown
